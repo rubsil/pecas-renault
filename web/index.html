@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peça-Troca — stock entre concessionários Renault e Dacia</title>
+<style>
+  :root {
+    --ink: #1a1d1a;
+    --ink-soft: #4a4e49;
+    --ink-faint: #82867f;
+    --paper: #f6f5f0;
+    --paper-raised: #ffffff;
+    --line: #d8d6cc;
+    --line-strong: #b8b6a8;
+    --accent: #2f5233;
+    --accent-soft: #e7ede4;
+    --accent-text: #1f3a23;
+    --warn: #8a5a1f;
+    --warn-soft: #f5ead6;
+    --radius: 6px;
+    --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+  }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    background: var(--paper-raised);
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+
+  .brand-mark {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+  }
+
+  .brand-name {
+    font-weight: 700;
+    font-size: 1.15rem;
+  }
+
+  .brand-sub {
+    color: var(--ink-faint);
+    font-size: 0.85rem;
+  }
+
+  nav a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 0.9rem;
+    margin-left: 1.25rem;
+  }
+  nav a:hover { color: var(--ink); text-decoration: underline; }
+
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+  }
+
+  .search-block {
+    text-align: center;
+    padding: 2rem 0 2.5rem;
+  }
+
+  .search-block h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0 0 0.4rem;
+  }
+
+  .search-block p {
+    color: var(--ink-soft);
+    margin: 0 0 1.75rem;
+    font-size: 0.95rem;
+  }
+
+  .search-row {
+    display: flex;
+    gap: 0.6rem;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .search-row input {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    padding: 0.75rem 0.9rem;
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+    color: var(--ink);
+  }
+  .search-row input:focus { outline: none; border-color: var(--accent); }
+
+  .search-row button {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 0 1.4rem;
+    border: 2px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .search-row button:hover { background: var(--accent); border-color: var(--accent); }
+
+  .results {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .result-card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+    padding: 1rem 1.25rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem 1rem;
+  }
+
+  .result-ref {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 1.05rem;
+  }
+
+  .result-desc {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    grid-column: 1 / -1;
+  }
+
+  .result-qty {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    justify-self: start;
+    align-self: start;
+  }
+
+  .result-dealer {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    border-top: 1px dashed var(--line);
+    padding-top: 0.6rem;
+    margin-top: 0.2rem;
+    align-items: center;
+  }
+
+  .result-dealer strong { color: var(--ink); }
+
+  .badge-verified {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+  }
+
+  .badge-pending {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--warn);
+    background: var(--warn-soft);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+  }
+
+  .result-dealer a {
+    color: var(--accent-text);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .result-dealer a:hover { text-decoration: underline; }
+
+  .empty-state, .status-line {
+    text-align: center;
+    color: var(--ink-faint);
+    padding: 2rem 0;
+    font-size: 0.92rem;
+  }
+
+  .divider-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--ink-faint);
+    font-size: 0.8rem;
+    margin: 2.5rem 0 1.25rem;
+  }
+  .divider-label::before, .divider-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .cta-panel {
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .cta-panel p { margin: 0; font-size: 0.9rem; color: var(--ink-soft); }
+  .cta-panel strong { color: var(--ink); }
+
+  .cta-panel a.btn {
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 0.55rem 1.1rem;
+    border: 2px solid var(--ink);
+    border-radius: var(--radius);
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .cta-panel a.btn:hover { background: var(--ink); color: var(--paper); }
+
+  footer {
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 0.8rem;
+    padding: 2rem 1.5rem;
+    border-top: 1px solid var(--line);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-mark">R//D</span>
+    <span class="brand-name">Peça-Troca</span>
+    <span class="brand-sub">rede de concessionários</span>
+  </div>
+  <nav>
+    <a href="publicar.html">Publicar peça</a>
+    <a href="conta.html">A minha conta</a>
+  </nav>
+</header>
+
+<main>
+
+  <div class="search-block">
+    <h1>Procura uma referência</h1>
+    <p>Vê que concessionários têm essa peça parada em stock.</p>
+    <div class="search-row">
+      <input type="text" id="ref-input" placeholder="ex: 8200 123456" autocomplete="off" />
+      <button id="search-btn">Procurar</button>
+    </div>
+  </div>
+
+  <div id="results-area">
+    <div class="status-line">Escreve pelo menos 2 caracteres da referência.</div>
+  </div>
+
+  <div class="divider-label">tens peças paradas?</div>
+
+  <div class="cta-panel">
+    <p><strong>Publica o que tens em stock</strong> — outros concessionários podem precisar exatamente disso.</p>
+    <a class="btn" href="publicar.html">Publicar peça →</a>
+  </div>
+
+</main>
+
+<footer>
+  Peça-Troca é uma plataforma independente, feita por concessionários para concessionários. Sem ligação oficial à Renault ou Dacia.
+</footer>
+
+<script>
+const API_BASE = "https://peca-troca-api.workers.dev"; // trocar pelo domínio real do Worker
+
+const input = document.getElementById("ref-input");
+const btn = document.getElementById("search-btn");
+const resultsArea = document.getElementById("results-area");
+
+async function runSearch() {
+  const ref = input.value.trim();
+  if (ref.length < 2) {
+    resultsArea.innerHTML = '<div class="status-line">Escreve pelo menos 2 caracteres da referência.</div>';
+    return;
+  }
+
+  resultsArea.innerHTML = '<div class="status-line">A procurar…</div>';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/listings/search?ref=${encodeURIComponent(ref)}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      resultsArea.innerHTML = `<div class="status-line">${data.error || "Não foi possível procurar agora."}</div>`;
+      return;
+    }
+
+    const results = data.results || [];
+    if (results.length === 0) {
+      resultsArea.innerHTML = `
+        <div class="empty-state">
+          Ninguém publicou ainda essa referência.<br>
+          <a href="publicar.html" style="color: var(--accent-text); font-weight: 600;">Sê o primeiro a avisar quando alguém tiver.</a>
+        </div>`;
+      return;
+    }
+
+    resultsArea.innerHTML = '<div class="results"></div>';
+    const list = resultsArea.querySelector(".results");
+
+    for (const r of results) {
+      const card = document.createElement("div");
+      card.className = "result-card";
+
+      const phoneDigits = (r.phone || "").replace(/\D+/g, "");
+      const badge = r.verified
+        ? '<span class="badge-verified">Verificado</span>'
+        : '<span class="badge-pending">Por confirmar</span>';
+
+      card.innerHTML = `
+        <div class="result-ref">${escapeHtml(r.reference)}</div>
+        <div class="result-qty">${r.quantity} un.</div>
+        ${r.description ? `<div class="result-desc">${escapeHtml(r.description)}</div>` : ""}
+        <div class="result-dealer">
+          <strong>${escapeHtml(r.company_name)}</strong>
+          ${badge}
+          <span>${escapeHtml(r.city || "")}</span>
+          ${r.phone ? `<a href="tel:${phoneDigits}">${escapeHtml(r.phone)}</a>` : ""}
+        </div>
+      `;
+      list.appendChild(card);
+    }
+  } catch (err) {
+    resultsArea.innerHTML = '<div class="status-line">Erro de ligação. Tenta novamente.</div>';
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str || "";
+  return div.innerHTML;
+}
+
+btn.addEventListener("click", runSearch);
+input.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
+</script>
+
+</body>
+</html>

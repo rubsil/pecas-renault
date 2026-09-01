@@ -1,0 +1,8 @@
+name = "peca-troca-api"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "peca-troca-db"
+database_id = "PREENCHER_DEPOIS_DE_CRIAR_A_BD"

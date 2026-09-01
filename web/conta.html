@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A minha conta — Peça-Troca</title>
+<style>
+  :root {
+    --ink: #1a1d1a;
+    --ink-soft: #4a4e49;
+    --ink-faint: #82867f;
+    --paper: #f6f5f0;
+    --paper-raised: #ffffff;
+    --line: #d8d6cc;
+    --accent: #2f5233;
+    --accent-soft: #e7ede4;
+    --accent-text: #1f3a23;
+    --danger: #8a2f1f;
+    --danger-soft: #f5ddd6;
+    --radius: 6px;
+    --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    background: var(--paper-raised);
+  }
+  .brand { display: flex; align-items: baseline; gap: 0.6rem; }
+  .brand-mark {
+    font-family: var(--mono); font-size: 1rem; font-weight: 700;
+    background: var(--ink); color: var(--paper); padding: 0.15rem 0.4rem; border-radius: 3px;
+  }
+  .brand-name { font-weight: 700; font-size: 1.15rem; }
+  nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.9rem; margin-left: 1.25rem; }
+  nav a:hover { color: var(--ink); text-decoration: underline; }
+
+  main { max-width: 480px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
+
+  .tabs { display: flex; gap: 0.4rem; margin-bottom: 1.75rem; }
+  .tab {
+    flex: 1; text-align: center; padding: 0.7rem; cursor: pointer;
+    border: 2px solid var(--ink); border-radius: var(--radius);
+    font-weight: 700; font-size: 0.9rem; background: var(--paper-raised);
+  }
+  .tab.active { background: var(--ink); color: var(--paper); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--ink-soft); margin: 1rem 0 0.3rem; }
+  label:first-child { margin-top: 0; }
+
+  input {
+    width: 100%; padding: 0.65rem 0.8rem; font-size: 0.95rem;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--paper-raised); color: var(--ink); font-family: var(--sans);
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+
+  button.submit {
+    width: 100%; margin-top: 1.5rem; padding: 0.8rem;
+    font-family: var(--sans); font-weight: 700; font-size: 0.95rem;
+    border: 2px solid var(--ink); background: var(--ink); color: var(--paper);
+    border-radius: var(--radius); cursor: pointer;
+  }
+  button.submit:hover { background: var(--accent); border-color: var(--accent); }
+  button.submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .hint { font-size: 0.8rem; color: var(--ink-faint); margin-top: 0.4rem; }
+
+  .message {
+    margin-top: 1.25rem; padding: 0.8rem 1rem; border-radius: var(--radius);
+    font-size: 0.88rem; display: none;
+  }
+  .message.show { display: block; }
+  .message.success { background: var(--accent-soft); color: var(--accent-text); }
+  .message.error { background: var(--danger-soft); color: var(--danger); }
+
+  .code-input {
+    text-align: center; font-family: var(--mono); font-size: 1.4rem;
+    letter-spacing: 0.3em; padding: 0.7rem;
+  }
+
+  .dashboard { display: none; }
+  .dashboard.show { display: block; }
+
+  .dash-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.5rem; }
+  .dash-header h2 { margin: 0; font-size: 1.2rem; }
+  .logout-link { font-size: 0.85rem; color: var(--ink-faint); cursor: pointer; text-decoration: underline; }
+
+  .verify-status {
+    padding: 0.7rem 1rem; border-radius: var(--radius); font-size: 0.85rem; margin-bottom: 1.5rem;
+  }
+  .verify-status.ok { background: var(--accent-soft); color: var(--accent-text); }
+  .verify-status.pending { background: #f5ead6; color: #8a5a1f; }
+
+  .listing-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.7rem 0; border-bottom: 1px solid var(--line);
+    font-size: 0.9rem;
+  }
+  .listing-ref { font-family: var(--mono); font-weight: 700; }
+  .listing-meta { color: var(--ink-faint); font-size: 0.8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-mark">R//D</span>
+    <span class="brand-name">Peça-Troca</span>
+  </div>
+  <nav>
+    <a href="index.html">Procurar</a>
+    <a href="publicar.html">Publicar peça</a>
+  </nav>
+</header>
+
+<main>
+
+  <div id="auth-view">
+    <div class="tabs">
+      <div class="tab active" data-tab="login">Entrar</div>
+      <div class="tab" data-tab="register">Registar concessionário</div>
+    </div>
+
+    <div class="panel active" id="panel-login">
+      <div id="login-step-phone">
+        <label for="login-phone">Telefone da conta</label>
+        <input type="tel" id="login-phone" placeholder="21 234 5678" />
+        <div class="hint">Enviamos um código de acesso para este número.</div>
+        <button class="submit" id="btn-request-code">Pedir código</button>
+      </div>
+
+      <div id="login-step-code" style="display: none;">
+        <label for="login-code">Código de acesso</label>
+        <input type="text" id="login-code" class="code-input" maxlength="6" placeholder="000000" />
+        <div class="hint">Válido por 15 minutos.</div>
+        <button class="submit" id="btn-redeem-code">Entrar</button>
+      </div>
+
+      <div class="message" id="login-message"></div>
+    </div>
+
+    <div class="panel" id="panel-register">
+      <label for="reg-company">Nome da empresa (como está registado na Renault)</label>
+      <input type="text" id="reg-company" placeholder="Auto Exemplo, Lda" />
+
+      <label for="reg-contact">Pessoa de contacto</label>
+      <input type="text" id="reg-contact" placeholder="Nome do responsável de peças" />
+
+      <label for="reg-phone">Telefone</label>
+      <input type="tel" id="reg-phone" placeholder="21 234 5678" />
+
+      <label for="reg-email">Email (opcional)</label>
+      <input type="email" id="reg-email" placeholder="pecas@exemplo.pt" />
+
+      <label for="reg-city">Localidade</label>
+      <input type="text" id="reg-city" placeholder="ex: Sintra" />
+
+      <button class="submit" id="btn-register">Criar conta</button>
+      <div class="message" id="register-message"></div>
+    </div>
+  </div>
+
+  <div class="dashboard" id="dashboard-view">
+    <div class="dash-header">
+      <h2 id="dash-company-name"></h2>
+      <span class="logout-link" id="btn-logout">sair</span>
+    </div>
+
+    <div class="verify-status" id="verify-status"></div>
+
+    <h3 style="font-size: 0.95rem; margin-bottom: 0.75rem;">As tuas peças publicadas</h3>
+    <div id="my-listings"></div>
+
+    <div style="margin-top: 1.5rem;">
+      <a href="publicar.html" style="color: var(--accent-text); font-weight: 600; text-decoration: none; font-size: 0.9rem;">+ Publicar nova peça →</a>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const API_BASE = "https://peca-troca-api.workers.dev"; // trocar pelo domínio real do Worker
+let pendingDealerId = null;
+
+// ---------- tabs ----------
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
+  });
+});
+
+// ---------- registo ----------
+document.getElementById("btn-register").addEventListener("click", async () => {
+  const companyName = document.getElementById("reg-company").value.trim();
+  const contactName = document.getElementById("reg-contact").value.trim();
+  const phone = document.getElementById("reg-phone").value.trim();
+  const email = document.getElementById("reg-email").value.trim();
+  const city = document.getElementById("reg-city").value.trim();
+  const msg = document.getElementById("register-message");
+
+  if (!companyName || !phone) {
+    showMessage(msg, "Nome da empresa e telefone são obrigatórios.", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/dealers/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ companyName, contactName, phone, email, city }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Não foi possível registar.", "error");
+      return;
+    }
+
+    showMessage(msg, data.message, "success");
+  } catch (err) {
+    showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
+  }
+});
+
+// ---------- login: pedir código ----------
+document.getElementById("btn-request-code").addEventListener("click", async () => {
+  const phone = document.getElementById("login-phone").value.trim();
+  const msg = document.getElementById("login-message");
+
+  if (!phone) {
+    showMessage(msg, "Indica o teu telefone.", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/request-code`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Não foi possível pedir o código.", "error");
+      return;
+    }
+
+    pendingDealerId = data.dealerId;
+    document.getElementById("login-step-phone").style.display = "none";
+    document.getElementById("login-step-code").style.display = "block";
+    showMessage(msg, data.devCode ? `Código de teste: ${data.devCode}` : "Código enviado.", "success");
+  } catch (err) {
+    showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
+  }
+});
+
+// ---------- login: trocar código ----------
+document.getElementById("btn-redeem-code").addEventListener("click", async () => {
+  const code = document.getElementById("login-code").value.trim();
+  const msg = document.getElementById("login-message");
+
+  if (!code || !pendingDealerId) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/redeem-code`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dealerId: pendingDealerId, code }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Código inválido.", "error");
+      return;
+    }
+
+    localStorage.setItem("pt_session", data.sessionToken);
+    loadDashboard();
+  } catch (err) {
+    showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
+  }
+});
+
+// ---------- logout ----------
+document.getElementById("btn-logout").addEventListener("click", () => {
+  localStorage.removeItem("pt_session");
+  document.getElementById("dashboard-view").classList.remove("show");
+  document.getElementById("auth-view").style.display = "block";
+});
+
+// ---------- dashboard ----------
+async function loadDashboard() {
+  const token = localStorage.getItem("pt_session");
+  if (!token) return;
+
+  try {
+    const meRes = await fetch(`${API_BASE}/api/dealers/me`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!meRes.ok) { localStorage.removeItem("pt_session"); return; }
+    const meData = await meRes.json();
+
+    document.getElementById("auth-view").style.display = "none";
+    document.getElementById("dashboard-view").classList.add("show");
+    document.getElementById("dash-company-name").textContent = meData.dealer.company_name;
+
+    const verifyEl = document.getElementById("verify-status");
+    if (meData.dealer.verified) {
+      verifyEl.className = "verify-status ok";
+      verifyEl.textContent = "Conta verificada contra a lista oficial de concessionários.";
+    } else {
+      verifyEl.className = "verify-status pending";
+      verifyEl.textContent = "Conta pendente de confirmação manual. Vais poder publicar assim que for validada.";
+    }
+
+    const listingsRes = await fetch(`${API_BASE}/api/listings/mine`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const listingsData = await listingsRes.json();
+    const container = document.getElementById("my-listings");
+    container.innerHTML = "";
+
+    if (!listingsData.results || listingsData.results.length === 0) {
+      container.innerHTML = '<p style="color: var(--ink-faint); font-size: 0.88rem;">Ainda não publicaste nenhuma peça.</p>';
+      return;
+    }
+
+    for (const l of listingsData.results) {
+      const row = document.createElement("div");
+      row.className = "listing-row";
+      row.innerHTML = `
+        <div>
+          <div class="listing-ref">${l.reference}</div>
+          <div class="listing-meta">${l.quantity} un. · ${l.status}</div>
+        </div>
+      `;
+      container.appendChild(row);
+    }
+  } catch (err) {
+    // sessão inválida, deixa o utilizador no ecrã de login
+  }
+}
+
+function showMessage(el, text, type) {
+  el.textContent = text;
+  el.className = `message show ${type}`;
+}
+
+// se já houver sessão guardada, ir direto ao dashboard
+if (localStorage.getItem("pt_session")) loadDashboard();
+</script>
+
+</body>
+</html>

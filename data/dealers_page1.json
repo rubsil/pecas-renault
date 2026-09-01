@@ -1,0 +1,217 @@
+{
+  "_note": "Dados extraídos de https://www.renault.pt/concessionarios/lista-concessionarios.html (página 1 de 4). As páginas 2-4 precisam de ser recolhidas separadamente — o site carrega a lista via JavaScript, por isso um fetch simples não consegue paginar. Ver scripts/fetch_dealers.md para instruções de como completar isto.",
+  "source_url": "https://www.renault.pt/concessionarios/lista-concessionarios.html",
+  "fetched_at": "2026-08-31",
+  "dealers": [
+    {
+      "company_name": "ACORLANDA-SOC.COM.E IND.DE AUTOM., LDA",
+      "address": "RUA JOAO VAZ CORTE REAL, 21/23",
+      "postal_code": "9700-106",
+      "city": "ANGRA DO HEROISMO",
+      "phone": "295213032"
+    },
+    {
+      "company_name": "ANSIAUTO-VEICULOS AUTOMOVEIS, LDA",
+      "address": "OLHOS D'ÁGUA",
+      "postal_code": "3240-236",
+      "city": "ANSIÃO",
+      "phone": "236677347"
+    },
+    {
+      "company_name": "ARLINDO SOARES DE PINHO, LDA",
+      "address": "AV.INFANTE D.HENRIQUE, 6 - AP.63",
+      "postal_code": "3730-241",
+      "city": "VALE DE CAMBRA",
+      "phone": "256460350"
+    },
+    {
+      "company_name": "ARNAUT & FILHOS, LDA",
+      "address": "BAIRRO NOVO",
+      "postal_code": "3220-031",
+      "city": "MIRANDA DO CORVO",
+      "phone": "239532311"
+    },
+    {
+      "company_name": "AUTO BORGES & QUARESMA, LDA",
+      "address": "RUA DA GALHAROTA-ALTO DA LAGOA",
+      "postal_code": "2665-243",
+      "city": "MALVEIRA",
+      "phone": "219661873"
+    },
+    {
+      "company_name": "AUTO CAMBOTA, LDA",
+      "address": "R.NORBERTO DE OLIVEIRA, 8/8A-10/10A",
+      "postal_code": "2620-111",
+      "city": "PÓVOA DE SANTO ADRIÃO",
+      "phone": "219371206"
+    },
+    {
+      "company_name": "AUTO CARAPELHOS, LDA",
+      "address": "RUA DA FLORESTA 255 - MIRA",
+      "postal_code": "3070-604",
+      "city": "CARAPELHOS",
+      "phone": "231451782"
+    },
+    {
+      "company_name": "AUTO CHICO-REPARAÇOES DE AUTOMOVEIS, LDA",
+      "address": "RUA EÇA DE QUEIROZ, 317-PAMPILHEIRA",
+      "postal_code": "2750-662",
+      "city": "CASCAIS",
+      "phone": "214828270"
+    },
+    {
+      "company_name": "AUTO MECÂNICA GINETO DA C.& MARTINS, LDA",
+      "address": "SOBRAL",
+      "postal_code": "3740-133",
+      "city": "PESSEGUEIRO DO VOUGA",
+      "phone": "234555746"
+    },
+    {
+      "company_name": "AUTO PARQUE DE LAMEGO-AUTOMOVEIS, LDA",
+      "address": "RETIRO DOS PASSARINHOS",
+      "postal_code": "5100-054",
+      "city": "LAMEGO",
+      "phone": "808100210"
+    },
+    {
+      "company_name": "AUTO REPARADORA MELO FALCAO, LDA",
+      "address": "ALAMEDA DA FONTE LUMINOSA LOTE AE14",
+      "postal_code": "1685-891",
+      "city": "FAMOES",
+      "phone": "219349500"
+    },
+    {
+      "company_name": "AUTO VASCO DA GAMA-JOSE Mª.E DAVID, LDA",
+      "address": "RUA DOS CELEIROS",
+      "postal_code": "8600-726",
+      "city": "LAGOS",
+      "phone": "282762439"
+    },
+    {
+      "company_name": "AUTO ZARCO-FUNCHAL",
+      "address": "RUA NOVA DO PICO DE SAO JOAO, 22 (ESTRADA DE SAO JOAO)",
+      "postal_code": "9004-501",
+      "city": "FUNCHAL",
+      "phone": "291745020"
+    },
+    {
+      "company_name": "AUTOALEGRE - AUTOMOVEIS DE PORTALEGRE SA",
+      "address": "AV.ESTREMADURA ESPANHOLA - AP.149",
+      "postal_code": "7300-051",
+      "city": "PORTALEGRE",
+      "phone": "245300900"
+    },
+    {
+      "company_name": "AUTOMECANICA DA CONFRARIA, S.A.",
+      "address": "RUA DA RAPOSEIRA, 180 - CONFRARIA",
+      "postal_code": "2420-203",
+      "city": "COLMEIAS",
+      "phone": "244722350"
+    },
+    {
+      "company_name": "AUTOMODUS, LDA",
+      "address": "ZONA INDUSTRIAL MOINHOS NOVOS, LT.1",
+      "postal_code": "4830-538",
+      "city": "PÓVOA DE LANHOSO",
+      "phone": "253738357"
+    },
+    {
+      "company_name": "BASTOS & SILVA, LDA",
+      "address": "ESTRADA NACIONAL 118, KM 40 - AP.57",
+      "postal_code": "2130-073",
+      "city": "BENAVENTE",
+      "phone": "263517460"
+    },
+    {
+      "company_name": "BOAVENTURA & FILHOS-GAR.BOAVENTURA, LDA",
+      "address": "ESTRADA DA PORTELA DE CARNAXIDE, 74",
+      "postal_code": "2795-630",
+      "city": "CARNAXIDE",
+      "phone": "214187213"
+    },
+    {
+      "company_name": "CAETANO - ALMADA",
+      "address": "Caminho de Possolos, 1",
+      "postal_code": "2825-043",
+      "city": "ALMADA",
+      "phone": "212949310"
+    },
+    {
+      "company_name": "CAETANO - CIRCUNVALACAO",
+      "address": "AV.FONTES PEREIRA DE MELO, 173",
+      "postal_code": "4100-262",
+      "city": "PORTO",
+      "phone": "226191500"
+    },
+    {
+      "company_name": "CAETANO - MONTIJO",
+      "address": "Circular Externa Rua da Premolde - Pau Queimado - Afonsoeiro, Loja 1",
+      "postal_code": "2870-480",
+      "city": "MONTIJO",
+      "phone": "215815512"
+    },
+    {
+      "company_name": "CAETANO - V.N. GAIA",
+      "address": "RUA DO BARREIRO, 771 - MADALENA",
+      "postal_code": "4405-730",
+      "city": "VILA NOVA DE GAIA",
+      "phone": "223777850"
+    },
+    {
+      "company_name": "CAETANO-BARREIRO",
+      "address": "Quinta dos Moinhos - Palhais",
+      "postal_code": "2830-222",
+      "city": "BARREIRO",
+      "phone": "211950542"
+    },
+    {
+      "company_name": "CAETANO-BOAVISTA",
+      "address": "RUA GRIJO,123/127",
+      "postal_code": "4150-384",
+      "city": "PORTO",
+      "phone": "226190700"
+    },
+    {
+      "company_name": "CAETANO-GONDOMAR",
+      "address": "AV.ASSOCIAÇÃO COMERCIAL E INDUSTRIAL DE GONDOMAR, 15/115",
+      "postal_code": "4420-620",
+      "city": "FÂNZERES",
+      "phone": "224661100"
+    },
+    {
+      "company_name": "CAETANO-MAIA",
+      "address": "RUA DO OUTEIRO,752/762,LT.1-GEMUNDE",
+      "postal_code": "4475-150",
+      "city": "MAIA",
+      "phone": "229477110"
+    },
+    {
+      "company_name": "CARBY - LOULE",
+      "address": "RUA HUMBERTO PACHECO, 39",
+      "postal_code": "8100-688",
+      "city": "LOULE",
+      "phone": "217652761"
+    },
+    {
+      "company_name": "CARBY - OEIRAS",
+      "address": "Rua Rui Teles Palhinha 2",
+      "postal_code": "2740-278",
+      "city": "Porto Salvo",
+      "phone": "217652761"
+    },
+    {
+      "company_name": "CARBY - V. REAL (V)",
+      "address": "ZONA INDUSTRIAL,LOTE 152-CONSTANTIM",
+      "postal_code": "5000-082",
+      "city": "VILA REAL",
+      "phone": "217652761"
+    },
+    {
+      "company_name": "CARBY-ABRUNHEIRA",
+      "address": "AV.DOS COMBATENTES, 74 - ABRUNHEIRA",
+      "postal_code": "2710-034",
+      "city": "SINTRA",
+      "phone": "217652761"
+    }
+  ]
+}

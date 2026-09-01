@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Publicar peça — Peça-Troca</title>
+<style>
+  :root {
+    --ink: #1a1d1a; --ink-soft: #4a4e49; --ink-faint: #82867f;
+    --paper: #f6f5f0; --paper-raised: #ffffff; --line: #d8d6cc;
+    --accent: #2f5233; --accent-soft: #e7ede4; --accent-text: #1f3a23;
+    --danger: #8a2f1f; --danger-soft: #f5ddd6;
+    --radius: 6px;
+    --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+
+  header {
+    border-bottom: 2px solid var(--ink); padding: 1.25rem 1.5rem;
+    display: flex; align-items: baseline; justify-content: space-between; background: var(--paper-raised);
+  }
+  .brand { display: flex; align-items: baseline; gap: 0.6rem; }
+  .brand-mark { font-family: var(--mono); font-size: 1rem; font-weight: 700; background: var(--ink); color: var(--paper); padding: 0.15rem 0.4rem; border-radius: 3px; }
+  .brand-name { font-weight: 700; font-size: 1.15rem; }
+  nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.9rem; margin-left: 1.25rem; }
+  nav a:hover { color: var(--ink); text-decoration: underline; }
+
+  main { max-width: 480px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
+
+  h1 { font-size: 1.4rem; margin: 0 0 0.4rem; }
+  .subtitle { color: var(--ink-soft); font-size: 0.9rem; margin: 0 0 2rem; }
+
+  .not-logged {
+    border: 1px dashed var(--line); border-radius: var(--radius);
+    padding: 1.5rem; text-align: center; color: var(--ink-soft); font-size: 0.9rem;
+  }
+  .not-logged a { color: var(--accent-text); font-weight: 700; text-decoration: none; }
+
+  form { display: none; }
+  form.show { display: block; }
+
+  label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--ink-soft); margin: 1.1rem 0 0.3rem; }
+  label:first-child { margin-top: 0; }
+
+  input, textarea, select {
+    width: 100%; padding: 0.65rem 0.8rem; font-size: 0.95rem;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--paper-raised); color: var(--ink); font-family: var(--sans);
+  }
+  input#reference { font-family: var(--mono); font-size: 1.05rem; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+
+  .row-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+  button.submit {
+    width: 100%; margin-top: 1.75rem; padding: 0.85rem;
+    font-family: var(--sans); font-weight: 700; font-size: 0.95rem;
+    border: 2px solid var(--ink); background: var(--ink); color: var(--paper);
+    border-radius: var(--radius); cursor: pointer;
+  }
+  button.submit:hover { background: var(--accent); border-color: var(--accent); }
+
+  .message { margin-top: 1.25rem; padding: 0.8rem 1rem; border-radius: var(--radius); font-size: 0.88rem; display: none; }
+  .message.show { display: block; }
+  .message.success { background: var(--accent-soft); color: var(--accent-text); }
+  .message.error { background: var(--danger-soft); color: var(--danger); }
+
+  .verify-notice {
+    background: #f5ead6; color: #8a5a1f; padding: 0.7rem 1rem;
+    border-radius: var(--radius); font-size: 0.85rem; margin-bottom: 1.5rem; display: none;
+  }
+  .verify-notice.show { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-mark">R//D</span>
+    <span class="brand-name">Peça-Troca</span>
+  </div>
+  <nav>
+    <a href="index.html">Procurar</a>
+    <a href="conta.html">A minha conta</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Publicar peça em stock</h1>
+  <p class="subtitle">Referências específicas que ficaram paradas — outro concessionário pode precisar.</p>
+
+  <div class="not-logged" id="not-logged">
+    Precisas de ter conta para publicar.<br>
+    <a href="conta.html">Entrar ou registar →</a>
+  </div>
+
+  <div class="verify-notice" id="verify-notice">
+    A tua conta ainda está pendente de confirmação. Podes preparar o anúncio, mas só fica visível depois de verificada.
+  </div>
+
+  <form id="publish-form">
+    <label for="reference">Referência da peça</label>
+    <input type="text" id="reference" placeholder="8200 123456" required />
+
+    <label for="description">Descrição</label>
+    <input type="text" id="description" placeholder="ex: Filtro de ar Clio IV" />
+
+    <div class="row-split">
+      <div>
+        <label for="quantity">Quantidade</label>
+        <input type="number" id="quantity" value="1" min="1" />
+      </div>
+      <div>
+        <label for="brand">Marca</label>
+        <select id="brand">
+          <option value="renault">Renault</option>
+          <option value="dacia">Dacia</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="notes">Notas (opcional)</label>
+    <textarea id="notes" rows="2" placeholder="ex: embalagem selada, nunca montada"></textarea>
+
+    <button type="submit" class="submit">Publicar</button>
+    <div class="message" id="publish-message"></div>
+  </form>
+</main>
+
+<script>
+const API_BASE = "https://peca-troca-api.workers.dev"; // trocar pelo domínio real do Worker
+const token = localStorage.getItem("pt_session");
+
+async function init() {
+  if (!token) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/dealers/me`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+
+    document.getElementById("not-logged").style.display = "none";
+    document.getElementById("publish-form").classList.add("show");
+
+    if (!data.dealer.verified) {
+      document.getElementById("verify-notice").classList.add("show");
+    }
+  } catch (err) {
+    // mantém o aviso de "precisas de conta"
+  }
+}
+
+document.getElementById("publish-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("publish-message");
+
+  const reference = document.getElementById("reference").value.trim();
+  const description = document.getElementById("description").value.trim();
+  const quantity = document.getElementById("quantity").value;
+  const brand = document.getElementById("brand").value;
+  const notes = document.getElementById("notes").value.trim();
+
+  if (!reference) {
+    showMessage(msg, "A referência é obrigatória.", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/listings`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ reference, description, quantity, brand, notes }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Não foi possível publicar.", "error");
+      return;
+    }
+
+    showMessage(msg, "Peça publicada. Já aparece nas pesquisas.", "success");
+    document.getElementById("publish-form").reset();
+    document.getElementById("quantity").value = 1;
+  } catch (err) {
+    showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
+  }
+});
+
+function showMessage(el, text, type) {
+  el.textContent = text;
+  el.className = `message show ${type}`;
+}
+
+init();
+</script>
+
+</body>
+</html>
