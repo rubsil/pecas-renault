@@ -120,10 +120,21 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
 
 ## Notas de design
 
-- Cada concessionário regista-se com nome da empresa + telefone. O sistema
-  cruza automaticamente contra a lista oficial da Renault: telefone exato =
-  validação automática imediata; nome semelhante sem telefone exato = fica
-  pendente para confirmação manual (ver `worker/src/verification.ts`).
+- Cada concessionário regista-se com nome da empresa + telefone + código
+  postal. O sistema cruza automaticamente contra a lista oficial da
+  Renault: telefone exato = validação automática imediata. Algumas
+  cadeias (Carby, Santogal) usam a mesma central telefónica para várias
+  lojas — nesses casos o código postal desempata qual loja exata; sem
+  ele, fica pendente para confirmação manual em vez de adivinhar
+  (ver `worker/src/verification.ts`).
+- **Nome da empresa no registo**: a lista oficial da Renault usa muitas
+  vezes um nome comercial abreviado, não a razão social completa — ex:
+  "CARLOS ALBERTO - FAIAL" em vez de "Carlos Alberto Gonçalves da Silva
+  e Filho, Lda". O telefone continua a validar corretamente mesmo que o
+  concessionário escreva o nome legal completo, mas para o matching por
+  nome funcionar melhor (caso de telefone não bater), convém escrever o
+  nome tal como aparece em
+  https://www.renault.pt/concessionarios/lista-concessionarios.html.
 - Login sem password: pede-se um código de 6 dígitos por telefone/email,
   válido 15 minutos, trocado por um token de sessão de 30 dias.
 - A pesquisa de peças é pública (não exige login) — só publicar exige conta.
