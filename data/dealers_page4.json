@@ -1,0 +1,14 @@
+{
+  "_note": "Página 4 de 4, obtida via select-all no browser. Lista oficial completa.",
+  "source_url": "https://www.renault.pt/concessionarios/lista-concessionarios.html?page=4",
+  "fetched_at": "2026-09-01",
+  "dealers": [
+    { "company_name": "SANTOGAL R - CENTRO REPARAÇÃO BATERIAS", "address": "RUA DO MOINHO VELHO, QUINTA VELHA", "postal_code": "2660-524", "city": "SANTO ANTAO DO TOJAL - LOURES", "phone": "218361400" },
+    { "company_name": "SANTOGAL R - CHELAS", "address": "R. DR. J. ESPIRITO SANTO, LOTE 11-E", "postal_code": "1950-096", "city": "LISBOA", "phone": "218361400" },
+    { "company_name": "SANTOGAL R - LOURES", "address": "RUA DO MOINHO VELHO, QUINTA VELHA", "postal_code": "2660-524", "city": "SANTO ANTÃO DO TOJAL - LOURES", "phone": "211233900" },
+    { "company_name": "SANTOGAL R - TELHEIRAS", "address": "AV.PROF.FRANCISCO GAMA CAEIRO", "postal_code": "1600-830", "city": "LISBOA", "phone": "217114500" },
+    { "company_name": "SILVA & SANTOS - ANSIÃO", "address": "OLHOS D'ÁGUA", "postal_code": "3240-236", "city": "ANSIAO", "phone": "236677347" },
+    { "company_name": "SILVA & SANTOS-POMBAL", "address": "RUA S.MARTINHO, 16/18", "postal_code": "3100-435", "city": "POMBAL", "phone": "236200500" },
+    { "company_name": "TUACAR-MIRANDELA", "address": "E.N.15-LUGAR DO ESPINHEIRAL", "postal_code": "5370-552", "city": "MIRANDELA", "phone": "966905826" }
+  ]
+}

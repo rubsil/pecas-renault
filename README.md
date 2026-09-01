@@ -20,7 +20,7 @@ peca-troca/
 │   │   └── auth.ts       login por código (magic link)
 │   ├── schema.sql        schema da base de dados
 │   └── wrangler.toml     configuração de deploy
-├── docs/                 Frontend estático (nome exigido pelo GitHub Pages)
+├── web/                  Frontend estático (GitHub Pages ou Cloudflare Pages)
 │   ├── index.html         pesquisa de peças
 │   ├── conta.html          registo / login / dashboard
 │   └── publicar.html       publicar peça
@@ -83,7 +83,7 @@ Isto dá-te um URL do género `https://peca-troca-api.<subdomínio>.workers.dev`
 
 ### 5. Ligar o frontend ao Worker
 
-Em cada ficheiro HTML (`docs/index.html`, `docs/conta.html`, `docs/publicar.html`),
+Em cada ficheiro HTML (`web/index.html`, `web/conta.html`, `web/publicar.html`),
 troca:
 
 ```js
@@ -94,10 +94,17 @@ pelo URL real que o `wrangler deploy` te deu.
 
 ### 6. Publicar o frontend
 
-Já está ativo em GitHub Pages, servido a partir da pasta `docs/` (é o
-único nome de pasta que o GitHub Pages aceita além da raiz do repositório).
-Basta fazer `git push` depois de qualquer alteração aos ficheiros em `docs/`
-e o site atualiza sozinho em 1-2 minutos.
+A forma mais simples é GitHub Pages, tal como no nif-nome:
+
+```bash
+git init
+git add .
+git commit -m "Primeira versão"
+git remote add origin <o-teu-repo>
+git push -u origin main
+```
+
+Depois, nas definições do repositório GitHub → Pages → escolher a pasta `web/`.
 
 ## O que falta antes de mandares o email aos concessionários
 

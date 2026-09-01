@@ -85,6 +85,7 @@ export default {
         companyName: body.companyName,
         phone: body.phone,
         city: body.city,
+        postalCode: body.postalCode,
       });
 
       const result = await env.DB

@@ -15,43 +15,79 @@ export interface VerificationResult {
 /**
  * Tenta validar um concessionário novo contra a lista oficial.
  *
- * Regra: telefone exato = validação automática imediata (o telefone
- * é o identificador mais difícil de forjar em massa, porque é público
- * e verificável por chamada).
+ * Regra: telefone exato = validação automática, MAS com uma ressalva
+ * importante — algumas cadeias (ex: Carby, Santogal) usam a mesma
+ * central telefónica para várias lojas em cidades diferentes. Um match
+ * de telefone que aponte para mais do que uma loja não pode escolher
+ * uma ao acaso, ou fica a loja errada associada à conta.
  *
- * Se o telefone não bater certo, tenta por nome com tolerância a
- * pequenas diferenças de grafia (maiúsculas, pontuação, abreviaturas).
- * Nome semelhante sozinho não chega a "verified" — fica pendente
- * para confirmação manual, porque nomes podem colidir por coincidência.
+ * Nesse caso, o telefone sozinho só confirma "és desta cadeia", e usa-se
+ * o código postal para desempatar qual loja exata. Se não vier código
+ * postal, ou se não bater com nenhuma das lojas do grupo, fica pendente
+ * para confirmação manual — mas já fica corretamente marcado como
+ * "telefone da cadeia confirmado", que informa a revisão manual.
+ *
+ * Se o telefone não bater com nada, tenta por nome com tolerância a
+ * pequenas diferenças de grafia. Nome semelhante sozinho não chega a
+ * "verified" — fica pendente, porque nomes podem colidir por coincidência.
  */
 export async function verifyAgainstOfficialList(
   db: D1Database,
-  input: { companyName: string; phone: string; city?: string }
+  input: { companyName: string; phone: string; city?: string; postalCode?: string }
 ): Promise<VerificationResult> {
   const phoneNorm = normalizePhone(input.phone);
   const nameNorm = normalizeText(input.companyName);
 
-  // 1. Match exato por telefone — mais forte, decide sozinho.
   if (phoneNorm) {
     const byPhone = await db
-      .prepare("SELECT id, company_name FROM official_dealers WHERE phone_normalized = ?")
+      .prepare("SELECT id, company_name, postal_code FROM official_dealers WHERE phone_normalized = ?")
       .bind(phoneNorm)
-      .first<{ id: number; company_name: string }>();
+      .all<{ id: number; company_name: string; postal_code: string | null }>();
 
-    if (byPhone) {
+    const matches = byPhone.results || [];
+
+    if (matches.length === 1) {
+      // Telefone único na lista — sem ambiguidade, valida direto.
       return {
         verified: true,
         method: "auto_match",
-        officialDealerId: byPhone.id,
+        officialDealerId: matches[0].id,
         matchedOn: ["phone"],
         confidence: 1,
       };
     }
+
+    if (matches.length > 1) {
+      // Telefone partilhado por várias lojas da mesma cadeia — desempata
+      // por código postal, para não associar à loja errada.
+      const postalNorm = (input.postalCode || "").trim().slice(0, 4); // primeiros 4 dígitos chegam
+      const exact = postalNorm
+        ? matches.find((m) => (m.postal_code || "").trim().startsWith(postalNorm))
+        : undefined;
+
+      if (exact) {
+        return {
+          verified: true,
+          method: "auto_match",
+          officialDealerId: exact.id,
+          matchedOn: ["phone", "postal_code"],
+          confidence: 1,
+        };
+      }
+
+      // Telefone da cadeia confere, mas não sabemos qual loja exata —
+      // fica pendente para um humano escolher, em vez de adivinhar.
+      return {
+        verified: false,
+        method: "manual",
+        officialDealerId: matches[0].id, // sugestão, não confirmação
+        matchedOn: ["phone_shared"],
+        confidence: 0.5,
+      };
+    }
   }
 
-  // 2. Sem match de telefone: procura candidatos por nome semelhante.
-  //    Não valida automaticamente — fica para revisão manual, mas já
-  //    liga ao registo mais provável para facilitar essa revisão.
+  // Sem match de telefone: procura candidatos por nome semelhante.
   const candidates = await db
     .prepare("SELECT id, company_name FROM official_dealers")
     .all<{ id: number; company_name: string }>();
@@ -74,7 +110,6 @@ export async function verifyAgainstOfficialList(
     };
   }
 
-  // 3. Nada de jeito encontrado — fica mesmo pendente, sem sugestão.
   return {
     verified: false,
     method: null,

@@ -165,6 +165,11 @@
       <label for="reg-city">Localidade</label>
       <input type="text" id="reg-city" placeholder="ex: Sintra" />
 
+      <label for="reg-postal">Código postal</label>
+      <input type="text" id="reg-postal" placeholder="ex: 2710-034" />
+
+      <div class="hint" style="margin-top: -0.5rem; margin-bottom: 0.5rem;">Ajuda-nos a confirmar automaticamente a tua loja, sobretudo se fizeres parte de uma cadeia com vários pontos (Carby, Santogal, etc).</div>
+
       <button class="submit" id="btn-register">Criar conta</button>
       <div class="message" id="register-message"></div>
     </div>
@@ -209,6 +214,7 @@ document.getElementById("btn-register").addEventListener("click", async () => {
   const phone = document.getElementById("reg-phone").value.trim();
   const email = document.getElementById("reg-email").value.trim();
   const city = document.getElementById("reg-city").value.trim();
+  const postalCode = document.getElementById("reg-postal").value.trim();
   const msg = document.getElementById("register-message");
 
   if (!companyName || !phone) {
@@ -220,7 +226,7 @@ document.getElementById("btn-register").addEventListener("click", async () => {
     const res = await fetch(`${API_BASE}/api/dealers/register`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ companyName, contactName, phone, email, city }),
+      body: JSON.stringify({ companyName, contactName, phone, email, city, postalCode }),
     });
     const data = await res.json();
 
