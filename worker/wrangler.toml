@@ -1,8 +1,8 @@
-name = "peca-troca-api"
+name = "pecas-renault"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "peca-troca-db"
-database_id = "PREENCHER_DEPOIS_DE_CRIAR_A_BD"
+database_id = "9ed67b74-11d7-4352-a0e4-5e286591cd2f"
