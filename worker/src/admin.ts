@@ -14,5 +14,9 @@
 export function checkAdminAuth(request: Request, env: { ADMIN_PASSWORD?: string }): boolean {
   if (!env.ADMIN_PASSWORD) return false; // sem secret definido, admin fica sempre bloqueado
   const provided = request.headers.get("x-admin-password");
-  return provided === env.ADMIN_PASSWORD;
+  if (!provided) return false;
+  // Aparar espaços/quebras de linha em ambos os lados, por segurança —
+  // alguns editores de secrets no dashboard podem introduzir um "\n"
+  // final sem intenção, o que faria a comparação exata falhar sempre.
+  return provided.trim() === env.ADMIN_PASSWORD.trim();
 }

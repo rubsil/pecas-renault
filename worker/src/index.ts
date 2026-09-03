@@ -83,6 +83,18 @@ export default {
     // ---------- health ----------
     if (path === "/health") return json({ ok: true, service: "peca-troca" });
 
+    // ---------- diagnóstico temporário do secret de admin ----------
+    // Não revela o valor, só confirma se o Worker o está a "ver".
+    // REMOVER depois de confirmarmos o problema do login de admin.
+    if (path === "/api/admin/diagnose") {
+      return json({
+        secretDefined: !!env.ADMIN_PASSWORD,
+        secretLength: env.ADMIN_PASSWORD ? env.ADMIN_PASSWORD.length : 0,
+        headerReceived: !!request.headers.get("x-admin-password"),
+        headerLength: (request.headers.get("x-admin-password") || "").length,
+      });
+    }
+
     // ---------- registo ----------
     if (path === "/api/dealers/register" && request.method === "POST") {
       const body = await request.json<any>().catch(() => null);
