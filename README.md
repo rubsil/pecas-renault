@@ -114,10 +114,22 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
 - [x] Validação automática por telefone + desempate por código postal
       (cadeias como Carby/Santogal)
 - [x] Fluxo de registo → confirmação de email → login testado de ponta a ponta
+- [x] Painel de administrador (`docs/admin.html`) — gestão de
+      concessionários, peças e password de registo
 - [ ] **Aplicar a migração `worker/migrations/0001_email_confirmation.sql`**
-      na D1 (consola do dashboard Cloudflare, tal como o schema inicial —
-      ver secção 2 acima). Sem isto, o registo com email obrigatório
-      não funciona, porque a coluna `email_confirmed` ainda não existe.
+      na D1, se ainda não o fizeste (consola do dashboard Cloudflare —
+      ver secção 2 acima).
+- [ ] **Aplicar a migração `worker/migrations/0002_settings_table.sql`**
+      na D1 — cria a tabela `settings` usada pela password de registo e
+      pelo painel de administrador. Sem isto, o separador
+      "Configurações" do painel não funciona.
+- [ ] **Definir o secret `ADMIN_PASSWORD`** no Worker, para poderes
+      entrar no painel de administrador (`docs/admin.html`). No
+      dashboard Cloudflare: Workers & Pages → `pecas-renault` →
+      Settings → Variables and Secrets → Add → tipo "Secret", nome
+      `ADMIN_PASSWORD`, valor à tua escolha. **Sem este secret
+      definido, o painel de administrador fica sempre bloqueado** —
+      é o comportamento seguro por omissão.
 - [ ] Ligar o envio do código de confirmação a um serviço real de email
       (ver `NOTA DE IMPLEMENTAÇÃO` em `worker/src/index.ts`). Sem isto,
       o código aparece só na resposta da API (`devCode`) — bom para
@@ -125,12 +137,33 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
 - [ ] Publicar 15-20 referências tuas próprias, para a plataforma não parecer
       vazia ao primeiro concessionário que entra.
 - [ ] Rever o texto do email de apresentação e incluir o link direto para
-      `conta.html`.
+      `conta.html`. Se definires uma password de registo (painel de
+      admin → Configurações), inclui-a nesse email.
+
+## Painel de administrador
+
+Acessível em `docs/admin.html` (ex: `https://rubsil.github.io/pecas-renault/admin.html`).
+Não está ligado em nenhum sítio visível do site — é uma página "escondida",
+só quem souber o URL (e a password) consegue entrar.
+
+- **Concessionários**: editar nome/telefone/email/cidade, marcar como
+  verificado manualmente, eliminar conta (e as suas peças).
+- **Peças**: editar referência/descrição/quantidade/estado, eliminar
+  qualquer peça de qualquer concessionário.
+- **Configurações**: definir ou remover a password de registo. Se
+  definida, o registo passa a exigir esse código; se vazia, qualquer
+  concessionário da lista oficial pode registar-se livremente.
+
+A autenticação é uma password única (`ADMIN_PASSWORD`, ver acima),
+sem sessões — cada ação no painel envia a password num header. É
+simples de propósito: só uma pessoa usa isto, sempre por HTTPS, com
+volume de uso baixo.
 
 ## Correções manuais (email mal escrito, etc.)
 
-Como o volume de concessionários é pequeno, correções pontuais fazem-se
-diretamente na consola D1 do dashboard Cloudflare. Exemplo, para corrigir
+Como o volume de concessionários é pequeno, correções pontuais também
+podem ser feitas diretamente na consola D1 do dashboard Cloudflare
+(alternativa ao painel de administrador acima). Exemplo, para corrigir
 um email:
 
 ```sql

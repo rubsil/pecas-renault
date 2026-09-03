@@ -246,6 +246,10 @@
 
       <div class="hint" style="margin-top: -0.5rem; margin-bottom: 0.5rem;">Ajuda-nos a confirmar automaticamente a tua loja, sobretudo se fizeres parte de uma cadeia com vários pontos (Carby, Santogal, etc).</div>
 
+      <label for="reg-access-code">Código de acesso</label>
+      <input type="text" id="reg-access-code" placeholder="fornecido no email de apresentação" />
+      <div class="hint" style="margin-top: -0.5rem; margin-bottom: 0.5rem;">Se a plataforma tiver registo aberto (sem código definido), este campo pode ficar em branco.</div>
+
       <button class="submit" id="btn-register">Criar conta</button>
       <div class="message" id="register-message"></div>
     </div>
@@ -406,6 +410,7 @@ document.getElementById("btn-register").addEventListener("click", async () => {
   const email = document.getElementById("reg-email").value.trim();
   const city = document.getElementById("reg-city").value.trim();
   const postalCode = document.getElementById("reg-postal").value.trim();
+  const registrationPassword = document.getElementById("reg-access-code").value.trim();
   const msg = document.getElementById("register-message");
 
   if (!companyName || !phone) {
@@ -421,7 +426,7 @@ document.getElementById("btn-register").addEventListener("click", async () => {
     const res = await fetch(`${API_BASE}/api/dealers/register`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ companyName, contactName, phone, email, city, postalCode }),
+      body: JSON.stringify({ companyName, contactName, phone, email, city, postalCode, registrationPassword }),
     });
     const data = await res.json();
 

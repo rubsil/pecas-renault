@@ -79,3 +79,13 @@ CREATE TABLE IF NOT EXISTS reference_alerts (
 
 CREATE INDEX IF NOT EXISTS idx_alerts_reference ON reference_alerts(reference_normalized);
 CREATE INDEX IF NOT EXISTS idx_alerts_dealer ON reference_alerts(dealer_id);
+
+-- Configurações editáveis pelo admin (ex: password de registo).
+-- Ver worker/migrations/0002_settings_table.sql para o contexto.
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_password', '');

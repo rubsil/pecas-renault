@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administração — Stock Rede Renault</title>
+<style>
+  :root {
+    --ink: #1a1d1a; --ink-soft: #4a4e49; --ink-faint: #82867f;
+    --paper: #f6f5f0; --paper-raised: #ffffff; --line: #d8d6cc;
+    --accent: #2f5233; --accent-soft: #e7ede4; --accent-text: #1f3a23;
+    --danger: #8a2f1f; --danger-soft: #f5ddd6;
+    --warn: #8a5a1f; --warn-soft: #f5ead6;
+    --radius: 6px;
+    --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+
+  header {
+    border-bottom: 2px solid var(--ink); padding: 1.25rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between; background: var(--ink);
+  }
+  .brand { color: var(--paper); font-weight: 700; font-size: 1.1rem; }
+  .brand-sub { color: #999; font-size: 0.78rem; }
+
+  main { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  /* ---------- login ---------- */
+  .login-box {
+    max-width: 360px; margin: 4rem auto; padding: 2rem;
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .login-box h1 { font-size: 1.2rem; margin: 0 0 1.25rem; }
+  .login-box input {
+    width: 100%; padding: 0.65rem 0.8rem; font-size: 0.95rem;
+    border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 0.75rem;
+  }
+  .login-box button {
+    width: 100%; padding: 0.75rem; font-weight: 700; background: var(--ink); color: var(--paper);
+    border: none; border-radius: var(--radius); cursor: pointer;
+  }
+  .login-error { color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem; display: none; }
+  .login-error.show { display: block; }
+
+  /* ---------- tabs ---------- */
+  .tabs { display: flex; gap: 0.4rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--line); }
+  .tab {
+    padding: 0.6rem 1rem; cursor: pointer; font-size: 0.88rem; font-weight: 600;
+    color: var(--ink-faint); border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ---------- tabela ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 2px solid var(--ink); font-size: 0.78rem; color: var(--ink-soft); }
+  td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:hover td { background: var(--accent-soft); }
+
+  .editable { border: 1px solid transparent; background: transparent; font-family: inherit; font-size: inherit; width: 100%; padding: 0.2rem; border-radius: 3px; }
+  .editable:hover { border-color: var(--line); }
+  .editable:focus { border-color: var(--accent); outline: none; background: var(--paper-raised); }
+
+  .badge { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  .badge.ok { background: var(--accent-soft); color: var(--accent-text); }
+  .badge.pending { background: var(--warn-soft); color: var(--warn); }
+
+  .row-actions { display: flex; gap: 0.35rem; white-space: nowrap; }
+  .btn-mini {
+    padding: 0.3rem 0.6rem; font-size: 0.78rem; font-weight: 600; border-radius: 4px;
+    cursor: pointer; border: 1px solid var(--line); background: var(--paper-raised);
+  }
+  .btn-mini.save { border-color: var(--accent); color: var(--accent-text); }
+  .btn-mini.save:hover { background: var(--accent-soft); }
+  .btn-mini.delete { border-color: var(--danger); color: var(--danger); }
+  .btn-mini.delete:hover { background: var(--danger-soft); }
+  .btn-mini.verify { border-color: var(--accent); color: var(--accent-text); }
+
+  .settings-box {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1.5rem; max-width: 480px;
+  }
+  .settings-box label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem; }
+  .settings-box input {
+    width: 100%; padding: 0.6rem 0.8rem; font-family: var(--mono); font-size: 0.95rem;
+    border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 0.5rem;
+  }
+  .settings-box .hint { font-size: 0.8rem; color: var(--ink-faint); margin-bottom: 1rem; }
+  .settings-box button { padding: 0.6rem 1.2rem; font-weight: 700; background: var(--ink); color: var(--paper); border: none; border-radius: var(--radius); cursor: pointer; }
+
+  .status-line { text-align: center; color: var(--ink-faint); padding: 2rem 0; font-size: 0.9rem; }
+  .toast {
+    position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: var(--paper); padding: 0.6rem 1.2rem; border-radius: var(--radius);
+    font-size: 0.85rem; display: none; z-index: 100;
+  }
+  .toast.show { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand">Administração</div>
+    <div class="brand-sub">Stock Rede Renault</div>
+  </div>
+</header>
+
+<main>
+
+  <div id="login-view">
+    <div class="login-box">
+      <h1>Painel de administrador</h1>
+      <input type="password" id="admin-password-input" placeholder="Password de administrador" />
+      <button id="btn-admin-login">Entrar</button>
+      <div class="login-error" id="login-error">Password inválida.</div>
+    </div>
+  </div>
+
+  <div id="admin-view" style="display: none;">
+    <div class="tabs">
+      <div class="tab active" data-tab="dealers">Concessionários</div>
+      <div class="tab" data-tab="listings">Peças</div>
+      <div class="tab" data-tab="settings">Configurações</div>
+    </div>
+
+    <div class="panel active" id="panel-dealers">
+      <div id="dealers-area"><div class="status-line">A carregar…</div></div>
+    </div>
+
+    <div class="panel" id="panel-listings">
+      <div id="listings-area"><div class="status-line">A carregar…</div></div>
+    </div>
+
+    <div class="panel" id="panel-settings">
+      <div class="settings-box">
+        <label for="reg-password-input">Password de registo</label>
+        <input type="text" id="reg-password-input" placeholder="deixa vazio para registo aberto" />
+        <div class="hint">
+          Se preenchida, quem se registar tem de introduzir esta password. Partilha-a
+          apenas no email de apresentação da plataforma. Deixa vazio para qualquer
+          concessionário da lista oficial se poder registar livremente.
+        </div>
+        <button id="btn-save-reg-password">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
+let adminPassword = sessionStorage.getItem("admin_password") || "";
+
+function showToast(text) {
+  const t = document.getElementById("toast");
+  t.textContent = text;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+function escapeAttr(str) {
+  return (str || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function adminFetch(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "content-type": "application/json",
+      "x-admin-password": adminPassword,
+      ...(options.headers || {}),
+    },
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem("admin_password");
+    document.getElementById("admin-view").style.display = "none";
+    document.getElementById("login-view").style.display = "block";
+    throw new Error("Não autorizado");
+  }
+  return res;
+}
+
+// ---------- login ----------
+document.getElementById("btn-admin-login").addEventListener("click", async () => {
+  const input = document.getElementById("admin-password-input");
+  adminPassword = input.value;
+
+  try {
+    const res = await adminFetch("/api/admin/dealers");
+    if (!res.ok) throw new Error();
+    sessionStorage.setItem("admin_password", adminPassword);
+    document.getElementById("login-view").style.display = "none";
+    document.getElementById("admin-view").style.display = "block";
+    loadDealers();
+  } catch (err) {
+    document.getElementById("login-error").classList.add("show");
+  }
+});
+
+// ---------- tabs ----------
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
+    if (tab.dataset.tab === "listings") loadListings();
+    if (tab.dataset.tab === "settings") loadSettings();
+  });
+});
+
+// ---------- concessionários ----------
+async function loadDealers() {
+  const area = document.getElementById("dealers-area");
+  area.innerHTML = '<div class="status-line">A carregar…</div>';
+
+  try {
+    const res = await adminFetch("/api/admin/dealers");
+    const data = await res.json();
+    renderDealers(data.results || []);
+  } catch (err) {
+    area.innerHTML = '<div class="status-line">Erro ao carregar.</div>';
+  }
+}
+
+function renderDealers(dealers) {
+  const area = document.getElementById("dealers-area");
+  if (dealers.length === 0) {
+    area.innerHTML = '<div class="status-line">Nenhum concessionário registado ainda.</div>';
+    return;
+  }
+
+  const rows = dealers.map(d => `
+    <tr data-id="${d.id}">
+      <td><input class="editable" data-field="companyName" value="${escapeAttr(d.company_name)}" /></td>
+      <td><input class="editable" data-field="phone" value="${escapeAttr(d.phone)}" /></td>
+      <td><input class="editable" data-field="email" value="${escapeAttr(d.email)}" /></td>
+      <td><input class="editable" data-field="city" value="${escapeAttr(d.city || "")}" /></td>
+      <td>
+        ${d.verified ? '<span class="badge ok">verificado</span>' : '<span class="badge pending">pendente</span>'}
+      </td>
+      <td>
+        <div class="row-actions">
+          <button class="btn-mini save" data-action="save-dealer" data-id="${d.id}">Guardar</button>
+          ${!d.verified ? `<button class="btn-mini verify" data-action="verify-dealer" data-id="${d.id}">Verificar</button>` : ""}
+          <button class="btn-mini delete" data-action="delete-dealer" data-id="${d.id}">Eliminar</button>
+        </div>
+      </td>
+    </tr>
+  `).join("");
+
+  area.innerHTML = `
+    <table>
+      <thead>
+        <tr><th>Empresa</th><th>Telefone</th><th>Email</th><th>Cidade</th><th>Estado</th><th></th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  area.querySelectorAll('[data-action="save-dealer"]').forEach(btn => {
+    btn.addEventListener("click", () => saveDealer(Number(btn.dataset.id)));
+  });
+  area.querySelectorAll('[data-action="verify-dealer"]').forEach(btn => {
+    btn.addEventListener("click", () => verifyDealer(Number(btn.dataset.id)));
+  });
+  area.querySelectorAll('[data-action="delete-dealer"]').forEach(btn => {
+    btn.addEventListener("click", () => deleteDealer(Number(btn.dataset.id)));
+  });
+}
+
+async function saveDealer(id) {
+  const row = document.querySelector(`tr[data-id="${id}"]`);
+  const body = {};
+  row.querySelectorAll("[data-field]").forEach(input => { body[input.dataset.field] = input.value; });
+
+  await adminFetch(`/api/admin/dealers/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+  showToast("Concessionário atualizado.");
+  loadDealers();
+}
+
+async function verifyDealer(id) {
+  await adminFetch(`/api/admin/dealers/${id}`, { method: "PATCH", body: JSON.stringify({ verified: true }) });
+  showToast("Concessionário verificado.");
+  loadDealers();
+}
+
+async function deleteDealer(id) {
+  if (!confirm("Eliminar este concessionário e todas as suas peças publicadas?")) return;
+  await adminFetch(`/api/admin/dealers/${id}`, { method: "DELETE" });
+  showToast("Concessionário eliminado.");
+  loadDealers();
+}
+
+// ---------- peças ----------
+async function loadListings() {
+  const area = document.getElementById("listings-area");
+  area.innerHTML = '<div class="status-line">A carregar…</div>';
+
+  try {
+    const res = await adminFetch("/api/admin/listings");
+    const data = await res.json();
+    renderListings(data.results || []);
+  } catch (err) {
+    area.innerHTML = '<div class="status-line">Erro ao carregar.</div>';
+  }
+}
+
+function renderListings(listings) {
+  const area = document.getElementById("listings-area");
+  if (listings.length === 0) {
+    area.innerHTML = '<div class="status-line">Nenhuma peça publicada ainda.</div>';
+    return;
+  }
+
+  const rows = listings.map(l => `
+    <tr data-id="${l.id}">
+      <td><input class="editable" data-field="reference" value="${escapeAttr(l.reference)}" /></td>
+      <td><input class="editable" data-field="description" value="${escapeAttr(l.description || "")}" /></td>
+      <td><input class="editable" data-field="quantity" type="number" min="0" value="${l.quantity}" style="width: 4rem;" /></td>
+      <td>
+        <select class="editable" data-field="status">
+          <option value="active" ${l.status === "active" ? "selected" : ""}>active</option>
+          <option value="reserved" ${l.status === "reserved" ? "selected" : ""}>reserved</option>
+          <option value="sold" ${l.status === "sold" ? "selected" : ""}>sold</option>
+          <option value="removed" ${l.status === "removed" ? "selected" : ""}>removed</option>
+        </select>
+      </td>
+      <td>${escapeAttr(l.company_name)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn-mini save" data-action="save-listing" data-id="${l.id}">Guardar</button>
+          <button class="btn-mini delete" data-action="delete-listing" data-id="${l.id}">Eliminar</button>
+        </div>
+      </td>
+    </tr>
+  `).join("");
+
+  area.innerHTML = `
+    <table>
+      <thead>
+        <tr><th>Referência</th><th>Descrição</th><th>Qtd.</th><th>Estado</th><th>Concessionário</th><th></th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  area.querySelectorAll('[data-action="save-listing"]').forEach(btn => {
+    btn.addEventListener("click", () => saveListing(Number(btn.dataset.id)));
+  });
+  area.querySelectorAll('[data-action="delete-listing"]').forEach(btn => {
+    btn.addEventListener("click", () => deleteListing(Number(btn.dataset.id)));
+  });
+}
+
+async function saveListing(id) {
+  const row = document.querySelector(`tr[data-id="${id}"]`);
+  const body = {};
+  row.querySelectorAll("[data-field]").forEach(input => {
+    body[input.dataset.field] = input.type === "number" ? Number(input.value) : input.value;
+  });
+
+  await adminFetch(`/api/admin/listings/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+  showToast("Peça atualizada.");
+  loadListings();
+}
+
+async function deleteListing(id) {
+  if (!confirm("Eliminar esta peça definitivamente?")) return;
+  await adminFetch(`/api/admin/listings/${id}`, { method: "DELETE" });
+  showToast("Peça eliminada.");
+  loadListings();
+}
+
+// ---------- configurações ----------
+async function loadSettings() {
+  try {
+    const res = await adminFetch("/api/admin/settings");
+    const data = await res.json();
+    const regPassword = (data.results || []).find(s => s.key === "registration_password");
+    document.getElementById("reg-password-input").value = regPassword?.value || "";
+  } catch (err) {
+    showToast("Erro ao carregar configurações.");
+  }
+}
+
+document.getElementById("btn-save-reg-password").addEventListener("click", async () => {
+  const value = document.getElementById("reg-password-input").value;
+  await adminFetch("/api/admin/settings/registration_password", {
+    method: "PUT",
+    body: JSON.stringify({ value }),
+  });
+  showToast(value ? "Password de registo definida." : "Registo aberto (sem password).");
+});
+
+// ---------- sessão já ativa (recarregar página) ----------
+if (adminPassword) {
+  adminFetch("/api/admin/dealers")
+    .then(res => {
+      if (res.ok) {
+        document.getElementById("login-view").style.display = "none";
+        document.getElementById("admin-view").style.display = "block";
+        loadDealers();
+      }
+    })
+    .catch(() => {});
+}
+</script>
+
+</body>
+</html>

@@ -17,14 +17,26 @@
 //   POST /api/alerts                  — subscreve alerta de referência (autenticado)
 //   GET  /api/alerts/mine             — alertas do próprio concessionário (autenticado)
 //
+//   Painel de administrador (protegido por header x-admin-password):
+//   GET    /api/admin/dealers               — lista todos os concessionários
+//   PATCH  /api/admin/dealers/:id           — edita um concessionário (nome, telefone, email, verified)
+//   DELETE /api/admin/dealers/:id           — elimina um concessionário e as suas peças
+//   GET    /api/admin/listings              — lista todas as peças (qualquer estado)
+//   PATCH  /api/admin/listings/:id          — edita qualquer peça
+//   DELETE /api/admin/listings/:id          — elimina qualquer peça
+//   GET    /api/admin/settings              — lê configurações (ex: password de registo)
+//   PUT    /api/admin/settings/:key         — muda uma configuração
+//
 //   GET  /health                      — health check
 
 import { normalizePhone, normalizeReference, normalizeText } from "./normalize";
 import { verifyAgainstOfficialList } from "./verification";
 import { createLoginCode, redeemLoginCode, resolveSession } from "./auth";
+import { checkAdminAuth } from "./admin";
 
 export interface Env {
   DB: D1Database;
+  ADMIN_PASSWORD?: string;
 }
 
 function json(data: unknown, init: ResponseInit = {}): Response {
@@ -33,8 +45,8 @@ function json(data: unknown, init: ResponseInit = {}): Response {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "access-control-allow-origin": "*",
-      "access-control-allow-headers": "content-type, authorization",
-      "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
+      "access-control-allow-headers": "content-type, authorization, x-admin-password",
+      "access-control-allow-methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
       ...(init.headers || {}),
     },
   });
@@ -52,6 +64,14 @@ async function requireDealer(request: Request, env: Env): Promise<number | Respo
   if (!dealerId) return json({ error: "Sessão inválida ou expirada. Faz login novamente." }, { status: 401 });
   return dealerId;
 }
+
+function requireAdmin(request: Request, env: Env): Response | null {
+  if (!checkAdminAuth(request, env)) {
+    return json({ error: "Password de administrador inválida." }, { status: 401 });
+  }
+  return null;
+}
+
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -71,6 +91,18 @@ export default {
       }
       if (!body?.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
         return json({ error: "Email válido é obrigatório." }, { status: 400 });
+      }
+
+      // Password de registo: só bloqueia se o admin tiver definido uma
+      // no painel. Vazio/não definido = registo aberto, como sempre foi.
+      const registrationPassword = await env.DB
+        .prepare("SELECT value FROM settings WHERE key = 'registration_password'")
+        .first<{ value: string | null }>();
+
+      if (registrationPassword?.value && registrationPassword.value.trim() !== "") {
+        if (body?.registrationPassword !== registrationPassword.value) {
+          return json({ error: "Código de acesso inválido. Verifica o email de apresentação da plataforma." }, { status: 403 });
+        }
       }
 
       const phoneNormalized = normalizePhone(body.phone);
@@ -470,6 +502,137 @@ export default {
         .all();
 
       return json({ results: rows.results || [] });
+    }
+
+    // ============================================================
+    // Painel de administrador — todas as rotas abaixo exigem
+    // header x-admin-password correto.
+    // ============================================================
+
+    if (path.startsWith("/api/admin/")) {
+      const authError = requireAdmin(request, env);
+      if (authError) return authError;
+    }
+
+    // ---------- listar todos os concessionários ----------
+    if (path === "/api/admin/dealers" && request.method === "GET") {
+      const rows = await env.DB
+        .prepare(
+          `SELECT id, company_name, contact_name, phone, email, email_confirmed,
+                  city, postal_code, verified, verification_method, created_at, last_login_at
+           FROM dealers ORDER BY created_at DESC`
+        )
+        .all();
+      return json({ results: rows.results || [] });
+    }
+
+    // ---------- editar um concessionário ----------
+    const adminDealerMatch = path.match(/^\/api\/admin\/dealers\/(\d+)$/);
+    if (adminDealerMatch && request.method === "PATCH") {
+      const dealerId = Number(adminDealerMatch[1]);
+      const body = await request.json<any>().catch(() => null);
+      if (!body) return json({ error: "Corpo do pedido inválido." }, { status: 400 });
+
+      const fields: string[] = [];
+      const values: any[] = [];
+
+      if (typeof body.companyName === "string") { fields.push("company_name = ?"); values.push(body.companyName); }
+      if (typeof body.contactName === "string") { fields.push("contact_name = ?"); values.push(body.contactName); }
+      if (typeof body.phone === "string") {
+        fields.push("phone = ?", "phone_normalized = ?");
+        values.push(body.phone, normalizePhone(body.phone));
+      }
+      if (typeof body.email === "string") { fields.push("email = ?"); values.push(body.email); }
+      if (typeof body.city === "string") { fields.push("city = ?"); values.push(body.city); }
+      if (typeof body.postalCode === "string") { fields.push("postal_code = ?"); values.push(body.postalCode); }
+      if (typeof body.verified === "boolean") { fields.push("verified = ?"); values.push(body.verified ? 1 : 0); }
+      if (typeof body.emailConfirmed === "boolean") { fields.push("email_confirmed = ?"); values.push(body.emailConfirmed ? 1 : 0); }
+
+      if (fields.length === 0) return json({ error: "Nada para atualizar." }, { status: 400 });
+
+      values.push(dealerId);
+      await env.DB.prepare(`UPDATE dealers SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+      return json({ message: "Concessionário atualizado." });
+    }
+
+    // ---------- eliminar um concessionário (e as suas peças) ----------
+    if (adminDealerMatch && request.method === "DELETE") {
+      const dealerId = Number(adminDealerMatch[1]);
+      await env.DB.prepare("DELETE FROM parts_listings WHERE dealer_id = ?").bind(dealerId).run();
+      await env.DB.prepare("DELETE FROM reference_alerts WHERE dealer_id = ?").bind(dealerId).run();
+      await env.DB.prepare("DELETE FROM dealers WHERE id = ?").bind(dealerId).run();
+      return json({ message: "Concessionário e respetivas peças eliminados." });
+    }
+
+    // ---------- listar todas as peças (qualquer estado) ----------
+    if (path === "/api/admin/listings" && request.method === "GET") {
+      const rows = await env.DB
+        .prepare(
+          `SELECT pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes,
+                  pl.status, pl.created_at, pl.updated_at,
+                  d.id AS dealer_id, d.company_name
+           FROM parts_listings pl
+           JOIN dealers d ON d.id = pl.dealer_id
+           ORDER BY pl.created_at DESC`
+        )
+        .all();
+      return json({ results: rows.results || [] });
+    }
+
+    // ---------- editar qualquer peça ----------
+    const adminListingMatch = path.match(/^\/api\/admin\/listings\/(\d+)$/);
+    if (adminListingMatch && request.method === "PATCH") {
+      const listingId = Number(adminListingMatch[1]);
+      const body = await request.json<any>().catch(() => null);
+      if (!body) return json({ error: "Corpo do pedido inválido." }, { status: 400 });
+
+      const fields: string[] = [];
+      const values: any[] = [];
+
+      if (typeof body.reference === "string") {
+        fields.push("reference = ?", "reference_normalized = ?");
+        values.push(body.reference, normalizeReference(body.reference));
+      }
+      if (typeof body.description === "string") { fields.push("description = ?"); values.push(body.description); }
+      if (typeof body.notes === "string") { fields.push("notes = ?"); values.push(body.notes); }
+      if (typeof body.quantity === "number") { fields.push("quantity = ?"); values.push(Math.max(0, Math.floor(body.quantity))); }
+      if (typeof body.status === "string" && ["active", "reserved", "sold", "removed"].includes(body.status)) {
+        fields.push("status = ?"); values.push(body.status);
+      }
+
+      if (fields.length === 0) return json({ error: "Nada para atualizar." }, { status: 400 });
+
+      fields.push("updated_at = datetime('now')");
+      values.push(listingId);
+      await env.DB.prepare(`UPDATE parts_listings SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+      return json({ message: "Peça atualizada." });
+    }
+
+    // ---------- eliminar qualquer peça ----------
+    if (adminListingMatch && request.method === "DELETE") {
+      const listingId = Number(adminListingMatch[1]);
+      await env.DB.prepare("DELETE FROM parts_listings WHERE id = ?").bind(listingId).run();
+      return json({ message: "Peça eliminada." });
+    }
+
+    // ---------- ler configurações ----------
+    if (path === "/api/admin/settings" && request.method === "GET") {
+      const rows = await env.DB.prepare("SELECT key, value, updated_at FROM settings").all();
+      return json({ results: rows.results || [] });
+    }
+
+    // ---------- alterar uma configuração ----------
+    const settingMatch = path.match(/^\/api\/admin\/settings\/([a-z_]+)$/);
+    if (settingMatch && request.method === "PUT") {
+      const key = settingMatch[1];
+      const body = await request.json<any>().catch(() => null);
+      if (typeof body?.value !== "string") return json({ error: "Campo 'value' é obrigatório." }, { status: 400 });
+
+      await env.DB
+        .prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+        .bind(key, body.value)
+        .run();
+      return json({ message: "Configuração atualizada." });
     }
 
     return json({ error: "Rota não encontrada." }, { status: 404 });
