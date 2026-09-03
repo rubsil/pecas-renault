@@ -201,7 +201,8 @@ só quem souber o URL (e a password) consegue entrar.
   telefone, código postal) e dá para adicionar ou remover lojas —
   útil quando a Renault abre/fecha um concessionário e a lista precisa
   de correção sem mexer em SQL.
-- **Peças**: editar referência/descrição/quantidade/estado, eliminar
+- **Peças**: editar referência/descrição/quantidade/estado/referências
+  de substituição (mesmo componente de tags do resto do site), eliminar
   qualquer peça de qualquer concessionário, filtrar por concessionário,
   pesquisar por referência/descrição, ordenar por qualquer coluna
   (mais recentes primeiro por defeito), ver data de publicação/última

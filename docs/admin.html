@@ -83,6 +83,36 @@
   .editable:hover { border-color: var(--line); }
   .editable:focus { border-color: var(--accent); outline: none; background: var(--paper-raised); }
 
+  .admin-tags-wrap {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem;
+    padding: 0.3rem 0.4rem; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--paper-raised); min-width: 160px;
+  }
+  .admin-tags-wrap:focus-within { border-color: var(--accent); }
+  .tags-list { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .tag-pill {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    background: var(--accent-soft); color: var(--accent-text); font-family: var(--mono);
+    font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.25rem 0.15rem 0.45rem; border-radius: 999px;
+  }
+  .tag-pill button {
+    all: unset; cursor: pointer; width: 0.9rem; height: 0.9rem; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 0.68rem;
+    color: var(--accent-text); line-height: 1;
+  }
+  .tag-pill button:hover { background: var(--accent); color: white; }
+  .admin-alt-refs-input {
+    flex: 1; min-width: 70px; border: none !important; padding: 0.15rem 0 !important; background: transparent !important;
+    font-size: 0.8rem;
+  }
+  .admin-alt-refs-input:focus { outline: none; }
+  .tag-add-btn {
+    flex-shrink: 0; width: 1.4rem; height: 1.4rem; font-size: 0.85rem; font-weight: 700;
+    background: var(--ink); color: var(--paper); border: none; border-radius: 50%;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .tag-add-btn:hover { background: var(--accent); }
+
   .badge { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 3px; white-space: nowrap; display: inline-block; }
   .badge.ok { background: var(--accent-soft); color: var(--accent-text); }
   .badge.pending { background: var(--warn-soft); color: var(--warn); }
@@ -356,6 +386,72 @@
 <script>
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 let adminPassword = sessionStorage.getItem("admin_password") || "";
+
+// ---------- componente de tags (referências de substituição) ----------
+// Um gestor por peça (chave = listing_id), tal como no dashboard do
+// concessionário -- cada linha da tabela de peças tem o seu próprio
+// campo de tags, todos independentes.
+const adminAltRefsManagers = {};
+
+function createTagsManager(inputId, listId) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  let tags = [];
+
+  function render() {
+    list.innerHTML = tags.map((tag, i) => `
+      <span class="tag-pill">
+        ${escapeAttr(tag)}
+        <button type="button" data-index="${i}" aria-label="Remover">✕</button>
+      </span>
+    `).join("");
+    list.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        tags.splice(Number(btn.dataset.index), 1);
+        render();
+      });
+    });
+  }
+
+  function addTag(value) {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    if (tags.some(t => t.toLowerCase() === trimmed.toLowerCase())) return;
+    tags.push(trimmed);
+    render();
+  }
+
+  function addFromInput() {
+    addTag(input.value);
+    input.value = "";
+    input.focus();
+  }
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addFromInput();
+    } else if (e.key === "Backspace" && input.value === "" && tags.length > 0) {
+      tags.pop();
+      render();
+    }
+  });
+
+  input.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text") || "";
+    if (/[,\s]/.test(text)) {
+      e.preventDefault();
+      text.split(/[,\s]+/).forEach(addTag);
+      input.value = "";
+    }
+  });
+
+  return {
+    getTags: () => [...tags],
+    setTags: (newTags) => { tags = [...newTags]; render(); },
+    addFromInput,
+  };
+}
 
 function showToast(text) {
   const t = document.getElementById("toast");
@@ -1020,6 +1116,13 @@ function renderListings(listings) {
     <tr data-id="${l.id}">
       <td><input class="editable" data-field="reference" value="${escapeAttr(l.reference)}" /></td>
       <td><input class="editable" data-field="description" value="${escapeAttr(l.description || "")}" /></td>
+      <td>
+        <div class="tags-input-wrap admin-tags-wrap" id="admin-tags-wrap-${l.id}">
+          <div class="tags-list" id="admin-tags-list-${l.id}"></div>
+          <input type="text" class="admin-alt-refs-input" id="admin-alt-refs-input-${l.id}" placeholder="referência" />
+          <button type="button" class="tag-add-btn" data-add-tag-for="${l.id}">+</button>
+        </div>
+      </td>
       <td><input class="editable" data-field="quantity" type="number" min="0" value="${l.quantity}" style="width: 4rem;" /></td>
       <td>
         <select class="editable" data-field="status">
@@ -1048,6 +1151,7 @@ function renderListings(listings) {
         <tr>
           <th class="sortable" data-sort-field="reference">Referência${sortArrow("listings", "reference")}</th>
           <th class="sortable" data-sort-field="description">Descrição${sortArrow("listings", "description")}</th>
+          <th>Substitui</th>
           <th class="sortable" data-sort-field="quantity">Qtd.${sortArrow("listings", "quantity")}</th>
           <th class="sortable" data-sort-field="status">Estado${sortArrow("listings", "status")}</th>
           <th class="sortable" data-sort-field="company_name">Concessionário${sortArrow("listings", "company_name")}</th>
@@ -1058,6 +1162,23 @@ function renderListings(listings) {
       <tbody>${rows}</tbody>
     </table>
   `;
+
+  // Um gestor de tags por peça, pré-preenchido com as alternativas
+  // que já tinha. Guardado num objeto à parte (adminAltRefsManagers)
+  // para o botão "Guardar" da linha conseguir ler os valores atuais.
+  for (const l of sorted) {
+    const existingAltRefs = (l.alt_references || "").split(",").map(s => s.trim()).filter(Boolean);
+    const manager = createTagsManager(`admin-alt-refs-input-${l.id}`, `admin-tags-list-${l.id}`);
+    manager.setTags(existingAltRefs);
+    adminAltRefsManagers[l.id] = manager;
+  }
+
+  area.querySelectorAll("[data-add-tag-for]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mgr = adminAltRefsManagers[btn.dataset.addTagFor];
+      if (mgr) mgr.addFromInput();
+    });
+  });
 
   area.querySelectorAll("th.sortable").forEach(th => {
     th.addEventListener("click", () => setSortField("listings", th.dataset.sortField, applyListingsFilter));
@@ -1077,6 +1198,9 @@ async function saveListing(id) {
   row.querySelectorAll("[data-field]").forEach(input => {
     body[input.dataset.field] = input.type === "number" ? Number(input.value) : input.value;
   });
+  if (adminAltRefsManagers[id]) {
+    body.altReferences = adminAltRefsManagers[id].getTags();
+  }
 
   await adminFetch(`/api/admin/listings/${id}`, { method: "PATCH", body: JSON.stringify(body) });
   showToast("Peça atualizada.");

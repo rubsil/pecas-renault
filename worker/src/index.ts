@@ -987,7 +987,8 @@ export default {
         .prepare(
           `SELECT pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes,
                   pl.status, pl.created_at, pl.updated_at,
-                  d.id AS dealer_id, d.company_name
+                  d.id AS dealer_id, d.company_name,
+                  (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            ORDER BY pl.created_at DESC`
@@ -1005,10 +1006,12 @@ export default {
 
       const fields: string[] = [];
       const values: any[] = [];
+      let newReferenceNormalized: string | null = null;
 
       if (typeof body.reference === "string") {
+        newReferenceNormalized = normalizeReference(body.reference);
         fields.push("reference = ?", "reference_normalized = ?");
-        values.push(body.reference, normalizeReference(body.reference));
+        values.push(body.reference, newReferenceNormalized);
       }
       if (typeof body.description === "string") { fields.push("description = ?"); values.push(body.description); }
       if (typeof body.notes === "string") { fields.push("notes = ?"); values.push(body.notes); }
@@ -1017,11 +1020,25 @@ export default {
         fields.push("status = ?"); values.push(body.status);
       }
 
-      if (fields.length === 0) return json({ error: "Nada para atualizar." }, { status: 400 });
+      if (fields.length === 0 && !Array.isArray(body.altReferences)) {
+        return json({ error: "Nada para atualizar." }, { status: 400 });
+      }
 
-      fields.push("updated_at = datetime('now')");
-      values.push(listingId);
-      await env.DB.prepare(`UPDATE parts_listings SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+      if (fields.length > 0) {
+        fields.push("updated_at = datetime('now')");
+        values.push(listingId);
+        await env.DB.prepare(`UPDATE parts_listings SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+      }
+
+      if (Array.isArray(body.altReferences)) {
+        // Se a referência principal não veio neste pedido, precisamos
+        // de a ler da BD para saber contra que valor evitar duplicados.
+        const mainRefNormalized = newReferenceNormalized ?? (
+          await env.DB.prepare("SELECT reference_normalized FROM parts_listings WHERE id = ?").bind(listingId).first<{ reference_normalized: string }>()
+        )?.reference_normalized ?? "";
+        await saveAltReferences(env.DB, listingId, body.altReferences, mainRefNormalized);
+      }
+
       return json({ message: "Peça atualizada." });
     }
 
