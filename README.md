@@ -114,7 +114,7 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
 - [x] Validação automática por telefone + desempate por código postal
       (cadeias como Carby/Santogal)
 - [x] Fluxo de registo → confirmação de email → login testado de ponta a ponta
-- [x] Painel de administrador (`docs/admin.html`) — gestão de
+- [x] Painel de administrador — gestão de
       concessionários, peças e password de registo
 - [ ] **Aplicar a migração `worker/migrations/0001_email_confirmation.sql`**
       na D1, se ainda não o fizeste (consola do dashboard Cloudflare —
@@ -141,7 +141,7 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
       referências de substituição de cada peça. Sem isto, publicar ou
       editar uma peça com referências alternativas falha.
 - [x] **Definir o secret `ADMIN_PASSWORD`** no Worker, para poderes
-      entrar no painel de administrador (`docs/admin.html`). **Usa
+      entrar no painel de administrador. **Usa
       `wrangler secret put ADMIN_PASSWORD`** (a partir da pasta
       `worker/`), não o dashboard Cloudflare — ver aviso importante
       abaixo. Sem este secret definido, o painel de administrador
@@ -177,9 +177,12 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
 
 ## Painel de administrador
 
-Acessível em `docs/admin.html` (ex: `https://rubsil.github.io/pecas-renault/admin.html`).
-Não está ligado em nenhum sítio visível do site — é uma página "escondida",
-só quem souber o URL (e a password) consegue entrar.
+Existe uma página de gestão interna, protegida por password
+(`ADMIN_PASSWORD`, ver acima) e propositadamente não referenciada
+aqui nem ligada em nenhum sítio visível do site — a segurança
+depende também de o caminho não ser público. Quem precisar de aceder
+já sabe onde fica; não fica documentado neste ficheiro por ser
+público no GitHub.
 
 - **Estatísticas** (topo da página): total de concessionários,
   verificados, pendentes, peças ativas, publicadas nos últimos 7 dias.
