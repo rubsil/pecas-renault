@@ -9,7 +9,7 @@
 //   GET  /api/dealers/me              — dados do concessionário autenticado
 //
 //   POST /api/listings                — publica peça (autenticado)
-//   PATCH /api/listings/:id           — atualiza estado (reserved/removed) (autenticado, dono)
+//   PATCH /api/listings/:id           — atualiza estado (sold/removed) (autenticado, dono)
 //   GET  /api/listings/browse         — lista todas as peças ativas (sem pesquisa)
 //   GET  /api/listings/search?ref=... — pesquisa por referência
 //   GET  /api/listings/mine           — listagens do próprio concessionário (autenticado)
@@ -18,6 +18,7 @@
 //   GET  /api/alerts/mine             — alertas do próprio concessionário (autenticado)
 //
 //   Painel de administrador (protegido por header x-admin-password):
+//   GET    /api/admin/stats                 — estatísticas rápidas (contas, verificados, peças)
 //   GET    /api/admin/dealers               — lista todos os concessionários
 //   PATCH  /api/admin/dealers/:id           — edita um concessionário (nome, telefone, email, verified)
 //   DELETE /api/admin/dealers/:id           — elimina um concessionário e as suas peças
@@ -378,8 +379,8 @@ export default {
       // Ou atualizar o estado diretamente (ex: marcar vendida sem
       // mexer na quantidade, ou reativar um anúncio).
       const status = body?.status;
-      if (!["active", "reserved", "sold", "removed"].includes(status)) {
-        return json({ error: "Estado inválido. Usa: active, reserved, sold, removed." }, { status: 400 });
+      if (!["active", "sold", "removed"].includes(status)) {
+        return json({ error: "Estado inválido. Usa: active, sold, removed." }, { status: 400 });
       }
 
       await env.DB
@@ -514,6 +515,32 @@ export default {
       if (authError) return authError;
     }
 
+    // ---------- estatísticas rápidas ----------
+    if (path === "/api/admin/stats" && request.method === "GET") {
+      const [dealerCounts, listingCounts, recentListings, pendingDealers] = await Promise.all([
+        env.DB.prepare(
+          "SELECT COUNT(*) AS total, SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) AS verified FROM dealers"
+        ).first<{ total: number; verified: number }>(),
+        env.DB.prepare(
+          "SELECT COUNT(*) AS total FROM parts_listings WHERE status = 'active'"
+        ).first<{ total: number }>(),
+        env.DB.prepare(
+          "SELECT COUNT(*) AS total FROM parts_listings WHERE created_at >= datetime('now', '-7 days')"
+        ).first<{ total: number }>(),
+        env.DB.prepare(
+          "SELECT COUNT(*) AS total FROM dealers WHERE verified = 0"
+        ).first<{ total: number }>(),
+      ]);
+
+      return json({
+        totalDealers: dealerCounts?.total || 0,
+        verifiedDealers: dealerCounts?.verified || 0,
+        pendingDealers: pendingDealers?.total || 0,
+        activeListings: listingCounts?.total || 0,
+        listingsLast7Days: recentListings?.total || 0,
+      });
+    }
+
     // ---------- listar todos os concessionários ----------
     if (path === "/api/admin/dealers" && request.method === "GET") {
       const rows = await env.DB
@@ -596,7 +623,7 @@ export default {
       if (typeof body.description === "string") { fields.push("description = ?"); values.push(body.description); }
       if (typeof body.notes === "string") { fields.push("notes = ?"); values.push(body.notes); }
       if (typeof body.quantity === "number") { fields.push("quantity = ?"); values.push(Math.max(0, Math.floor(body.quantity))); }
-      if (typeof body.status === "string" && ["active", "reserved", "sold", "removed"].includes(body.status)) {
+      if (typeof body.status === "string" && ["active", "sold", "removed"].includes(body.status)) {
         fields.push("status = ?"); values.push(body.status);
       }
 

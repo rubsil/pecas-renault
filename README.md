@@ -123,6 +123,12 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
       na D1 — cria a tabela `settings` usada pela password de registo e
       pelo painel de administrador. Sem isto, o separador
       "Configurações" do painel não funciona.
+- [ ] **Aplicar a migração `worker/migrations/0003_remove_reserved_status.sql`**
+      na D1 — o estado `reserved` foi removido (nunca teve ação
+      correspondente no dashboard do concessionário, só existia no
+      painel de admin sem ninguém o usar). Esta migração só é
+      necessária se por acaso já tiveres alguma peça marcada como
+      `reserved`; caso contrário é inofensiva de qualquer forma.
 - [x] **Definir o secret `ADMIN_PASSWORD`** no Worker, para poderes
       entrar no painel de administrador (`docs/admin.html`). **Usa
       `wrangler secret put ADMIN_PASSWORD`** (a partir da pasta
@@ -164,6 +170,8 @@ Acessível em `docs/admin.html` (ex: `https://rubsil.github.io/pecas-renault/adm
 Não está ligado em nenhum sítio visível do site — é uma página "escondida",
 só quem souber o URL (e a password) consegue entrar.
 
+- **Estatísticas** (topo da página): total de concessionários,
+  verificados, pendentes, peças ativas, publicadas nos últimos 7 dias.
 - **Concessionários**: editar nome/telefone/email/cidade, marcar como
   verificado manualmente, eliminar conta (e as suas peças).
 - **Peças**: editar referência/descrição/quantidade/estado, eliminar

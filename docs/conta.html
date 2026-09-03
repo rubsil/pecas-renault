@@ -610,7 +610,7 @@ function renderMyListings(listings, token) {
     row.className = "listing-row";
     row.dataset.listingId = l.id;
 
-    const statusLabel = { active: "disponível", reserved: "reservada", sold: "vendida" }[l.status] || l.status;
+    const statusLabel = { active: "disponível", sold: "vendida" }[l.status] || l.status;
 
     row.innerHTML = `
       <div class="listing-main">

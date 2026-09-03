@@ -45,6 +45,18 @@
   .login-error.show { display: block; }
 
   /* ---------- tabs ---------- */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.75rem; margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 0.9rem 1rem;
+  }
+  .stat-value { font-size: 1.5rem; font-weight: 700; font-family: var(--mono); line-height: 1.1; }
+  .stat-label { font-size: 0.75rem; color: var(--ink-faint); margin-top: 0.25rem; }
+  .stat-card.warn .stat-value { color: var(--warn); }
+
   .tabs { display: flex; gap: 0.4rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--line); }
   .tab {
     padding: 0.6rem 1rem; cursor: pointer; font-size: 0.88rem; font-weight: 600;
@@ -121,6 +133,8 @@
   </div>
 
   <div id="admin-view" style="display: none;">
+    <div class="stats-bar" id="stats-bar"></div>
+
     <div class="tabs">
       <div class="tab active" data-tab="dealers">Concessionários</div>
       <div class="tab" data-tab="listings">Peças</div>
@@ -187,7 +201,7 @@ async function adminFetch(path, options = {}) {
 }
 
 // ---------- login ----------
-document.getElementById("btn-admin-login").addEventListener("click", async () => {
+async function attemptAdminLogin() {
   const input = document.getElementById("admin-password-input");
   adminPassword = input.value;
   const errorBox = document.getElementById("login-error");
@@ -212,11 +226,17 @@ document.getElementById("btn-admin-login").addEventListener("click", async () =>
     errorBox.classList.remove("show");
     document.getElementById("login-view").style.display = "none";
     document.getElementById("admin-view").style.display = "block";
+    loadStats();
     loadDealers();
   } catch (err) {
     errorBox.textContent = "Erro de ligação: " + err.message;
     errorBox.classList.add("show");
   }
+}
+
+document.getElementById("btn-admin-login").addEventListener("click", attemptAdminLogin);
+document.getElementById("admin-password-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") attemptAdminLogin();
 });
 
 // ---------- tabs ----------
@@ -232,6 +252,40 @@ document.querySelectorAll(".tab").forEach(tab => {
 });
 
 // ---------- concessionários ----------
+// ---------- estatísticas ----------
+async function loadStats() {
+  const bar = document.getElementById("stats-bar");
+  try {
+    const res = await adminFetch("/api/admin/stats");
+    const s = await res.json();
+
+    bar.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-value">${s.totalDealers}</div>
+        <div class="stat-label">concessionários registados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${s.verifiedDealers}</div>
+        <div class="stat-label">verificados</div>
+      </div>
+      <div class="stat-card ${s.pendingDealers > 0 ? "warn" : ""}">
+        <div class="stat-value">${s.pendingDealers}</div>
+        <div class="stat-label">pendentes de verificação</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${s.activeListings}</div>
+        <div class="stat-label">peças ativas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${s.listingsLast7Days}</div>
+        <div class="stat-label">publicadas (7 dias)</div>
+      </div>
+    `;
+  } catch (err) {
+    bar.innerHTML = "";
+  }
+}
+
 async function loadDealers() {
   const area = document.getElementById("dealers-area");
   area.innerHTML = '<div class="status-line">A carregar…</div>';
@@ -343,7 +397,6 @@ function renderListings(listings) {
       <td>
         <select class="editable" data-field="status">
           <option value="active" ${l.status === "active" ? "selected" : ""}>active</option>
-          <option value="reserved" ${l.status === "reserved" ? "selected" : ""}>reserved</option>
           <option value="sold" ${l.status === "sold" ? "selected" : ""}>sold</option>
           <option value="removed" ${l.status === "removed" ? "selected" : ""}>removed</option>
         </select>
@@ -422,6 +475,7 @@ if (adminPassword) {
       if (res.ok) {
         document.getElementById("login-view").style.display = "none";
         document.getElementById("admin-view").style.display = "block";
+        loadStats();
         loadDealers();
       }
     })
