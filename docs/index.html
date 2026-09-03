@@ -160,6 +160,13 @@
     grid-column: 1 / -1;
   }
 
+  .result-notes {
+    color: var(--ink-faint);
+    font-size: 0.8rem;
+    font-style: italic;
+    grid-column: 1 / -1;
+  }
+
   .result-qty {
     font-family: var(--mono);
     font-size: 0.85rem;
@@ -279,7 +286,7 @@
   <nav>
     <a href="publicar.html">Publicar peça</a>
     <a href="conta.html" id="nav-account-link">A minha conta</a>
-    <a href="conta.html" id="nav-session-link">Iniciar sessão</a>
+    <a href="#" id="nav-session-link" style="display: none;">Terminar sessão</a>
   </nav>
 </header>
 
@@ -301,8 +308,8 @@
   <div class="divider-label">tens peças paradas?</div>
 
   <div class="cta-panel">
-    <p><strong>Publica o que tens em stock</strong> — outros concessionários podem precisar exatamente disso.</p>
-    <a class="btn" href="publicar.html">Publicar peça →</a>
+    <p><strong>Publica o que tens em stock</strong> — outros concessionários podem precisar exatamente disso. Precisas só de criar conta uma vez.</p>
+    <a class="btn" href="conta.html">Registar / Publicar peça →</a>
   </div>
 
 </main>
@@ -313,6 +320,7 @@
 
 <script>
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
+const sessionToken = localStorage.getItem("pt_session");
 
 const input = document.getElementById("ref-input");
 const btn = document.getElementById("search-btn");
@@ -344,12 +352,13 @@ function renderResults(results, emptyMessage) {
       <div class="result-ref">${escapeHtml(r.reference)}</div>
       <div class="result-qty">${r.quantity} un.</div>
       ${r.description ? `<div class="result-desc">${escapeHtml(r.description)}</div>` : ""}
+      ${r.notes ? `<div class="result-notes">${escapeHtml(r.notes)}</div>` : ""}
       <div class="result-dealer">
         <strong>${escapeHtml(r.company_name)}</strong>
         ${badge}
         <span>${escapeHtml(r.city || "")}</span>
         ${r.phone ? `<a href="tel:${phoneDigits}">${escapeHtml(r.phone)}</a>` : ""}
-        ${r.email ? `<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>` : ""}
+        ${sessionToken && r.email ? `<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>` : ""}
       </div>
     `;
     list.appendChild(card);
@@ -410,19 +419,20 @@ btn.addEventListener("click", runSearch);
 input.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
 
 // ---------- estado de sessão no header ----------
-const sessionToken = localStorage.getItem("pt_session");
+const accountLink = document.getElementById("nav-account-link");
 const sessionLink = document.getElementById("nav-session-link");
 if (sessionToken) {
-  sessionLink.textContent = "Terminar sessão";
-  sessionLink.href = "#";
+  accountLink.textContent = "A minha conta";
+  sessionLink.style.display = "";
   sessionLink.addEventListener("click", (e) => {
     e.preventDefault();
     localStorage.removeItem("pt_session");
     location.reload();
   });
 } else {
-  document.getElementById("nav-account-link").style.display = "none";
-  sessionLink.textContent = "Iniciar sessão";
+  // Deixa explícito que este link também serve para criar conta —
+  // sem isto, quem chega pela primeira vez não percebe que há registo.
+  accountLink.textContent = "Entrar / Registar";
 }
 
 // ---------- carregar lista ao abrir a página ----------

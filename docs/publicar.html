@@ -84,7 +84,7 @@
   <nav>
     <a href="index.html">Procurar</a>
     <a href="conta.html" id="nav-account-link">A minha conta</a>
-    <a href="conta.html" id="nav-session-link">Iniciar sessão</a>
+    <a href="#" id="nav-session-link" style="display: none;">Terminar sessão</a>
   </nav>
 </header>
 
@@ -108,19 +108,8 @@
     <label for="description">Descrição</label>
     <input type="text" id="description" placeholder="ex: Filtro de ar Clio IV" />
 
-    <div class="row-split">
-      <div>
-        <label for="quantity">Quantidade</label>
-        <input type="number" id="quantity" value="1" min="1" />
-      </div>
-      <div>
-        <label for="brand">Marca</label>
-        <select id="brand">
-          <option value="renault">Renault</option>
-          <option value="dacia">Dacia</option>
-        </select>
-      </div>
-    </div>
+    <label for="quantity">Quantidade</label>
+    <input type="number" id="quantity" value="1" min="1" />
 
     <label for="notes">Notas (opcional)</label>
     <textarea id="notes" rows="2" placeholder="ex: embalagem selada, nunca montada"></textarea>
@@ -162,7 +151,6 @@ document.getElementById("publish-form").addEventListener("submit", async (e) => 
   const reference = document.getElementById("reference").value.trim();
   const description = document.getElementById("description").value.trim();
   const quantity = document.getElementById("quantity").value;
-  const brand = document.getElementById("brand").value;
   const notes = document.getElementById("notes").value.trim();
 
   if (!reference) {
@@ -174,7 +162,7 @@ document.getElementById("publish-form").addEventListener("submit", async (e) => 
     const res = await fetch(`${API_BASE}/api/listings`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ reference, description, quantity, brand, notes }),
+      body: JSON.stringify({ reference, description, quantity, brand: "renault", notes }),
     });
     const data = await res.json();
 
@@ -197,18 +185,18 @@ function showMessage(el, text, type) {
 }
 
 // ---------- estado de sessão no header ----------
+const accountLink = document.getElementById("nav-account-link");
 const sessionLink = document.getElementById("nav-session-link");
 if (token) {
-  sessionLink.textContent = "Terminar sessão";
-  sessionLink.href = "#";
+  accountLink.textContent = "A minha conta";
+  sessionLink.style.display = "";
   sessionLink.addEventListener("click", (e) => {
     e.preventDefault();
     localStorage.removeItem("pt_session");
     location.href = "index.html";
   });
 } else {
-  document.getElementById("nav-account-link").style.display = "none";
-  sessionLink.textContent = "Iniciar sessão";
+  accountLink.textContent = "Entrar / Registar";
 }
 
 init();
