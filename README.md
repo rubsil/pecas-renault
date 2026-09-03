@@ -177,12 +177,14 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
 
 ## Painel de administrador
 
-Existe uma página de gestão interna, protegida por password
-(`ADMIN_PASSWORD`, ver acima) e propositadamente não referenciada
-aqui nem ligada em nenhum sítio visível do site — a segurança
-depende também de o caminho não ser público. Quem precisar de aceder
-já sabe onde fica; não fica documentado neste ficheiro por ser
-público no GitHub.
+Este projeto tem uma página de gestão interna, para o criador da
+plataforma poder corrigir problemas e gerir dados diretamente —
+concessionários, peças, registo — de forma mais rápida e eficaz do
+que editar a base de dados manualmente. É protegida por password
+(`ADMIN_PASSWORD`, ver acima) e só o criador da plataforma tem acesso
+a essa password; o caminho da página não é divulgado aqui de
+propósito, como camada extra (mas não a principal — ver nota de
+segurança abaixo).
 
 - **Estatísticas** (topo da página): total de concessionários,
   verificados, pendentes, peças ativas, publicadas nos últimos 7 dias.
@@ -227,6 +229,12 @@ A autenticação é uma password única (`ADMIN_PASSWORD`, ver acima),
 sem sessões — cada ação no painel envia a password num header. É
 simples de propósito: só uma pessoa usa isto, sempre por HTTPS, com
 volume de uso baixo.
+
+**Nota de segurança**: a proteção real é a password. O ficheiro do
+painel continua listado na estrutura pública deste repositório no
+GitHub como qualquer outro — não referir o caminho aqui só reduz
+descoberta casual, não é segurança por si só. Nunca assumir o
+contrário.
 
 ## Correções manuais (email mal escrito, etc.)
 
