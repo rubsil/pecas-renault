@@ -79,6 +79,7 @@
   .badge { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 3px; }
   .badge.ok { background: var(--accent-soft); color: var(--accent-text); }
   .badge.pending { background: var(--warn-soft); color: var(--warn); }
+  .badge.none { background: var(--paper); color: var(--ink-faint); border: 1px solid var(--line); }
 
   .row-actions { display: flex; gap: 0.35rem; white-space: nowrap; }
   .btn-mini {
@@ -138,6 +139,23 @@
 
   .status-line { text-align: center; color: var(--ink-faint); padding: 2rem 0; font-size: 0.9rem; }
 
+  .autocomplete-wrap { position: relative; }
+  .autocomplete-list {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+    background: var(--paper-raised); border: 1px solid var(--line); border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    max-height: 220px; overflow-y: auto; display: none;
+  }
+  .autocomplete-list.show { display: block; }
+  .autocomplete-item {
+    padding: 0.6rem 0.8rem; cursor: pointer; font-size: 0.85rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover, .autocomplete-item.active { background: var(--accent-soft); }
+  .autocomplete-item .ac-name { font-weight: 600; color: var(--ink); }
+  .autocomplete-item .ac-meta { color: var(--ink-faint); font-size: 0.75rem; margin-top: 0.1rem; }
+
   .listings-filter { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; font-size: 0.85rem; }
   .listings-filter select {
     padding: 0.4rem 0.6rem; border: 1px solid var(--line); border-radius: var(--radius);
@@ -176,6 +194,7 @@
 
     <div class="tabs">
       <div class="tab active" data-tab="dealers">Concessionários</div>
+      <div class="tab" data-tab="official">Lista Oficial</div>
       <div class="tab" data-tab="listings">Peças</div>
       <div class="tab" data-tab="settings">Configurações</div>
     </div>
@@ -189,9 +208,10 @@
           nenhum. Usa para quem pediu para ser registado diretamente.
         </div>
         <div class="form-grid">
-          <div>
+          <div class="autocomplete-wrap">
             <label>Nome da empresa</label>
-            <input type="text" id="nd-company" placeholder="Auto Exemplo, Lda" />
+            <input type="text" id="nd-company" placeholder="Auto Exemplo, Lda" autocomplete="off" />
+            <div class="autocomplete-list" id="nd-company-suggestions"></div>
           </div>
           <div>
             <label>Pessoa de contacto</label>
@@ -221,6 +241,19 @@
       </div>
 
       <div id="dealers-area"><div class="status-line">A carregar…</div></div>
+    </div>
+
+    <div class="panel" id="panel-official">
+      <div class="listings-filter">
+        <label for="official-filter">Mostrar:</label>
+        <select id="official-filter">
+          <option value="all">Todos (97)</option>
+          <option value="unregistered">Só por registar</option>
+          <option value="pending">Registados, pendentes de verificação</option>
+          <option value="verified">Verificados</option>
+        </select>
+      </div>
+      <div id="official-area"><div class="status-line">A carregar…</div></div>
     </div>
 
     <div class="panel" id="panel-listings">
@@ -330,6 +363,7 @@ document.querySelectorAll(".tab").forEach(tab => {
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
     tab.classList.add("active");
     document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
+    if (tab.dataset.tab === "official") loadOfficialDealers();
     if (tab.dataset.tab === "listings") loadListings();
     if (tab.dataset.tab === "settings") loadSettings();
   });
@@ -369,6 +403,70 @@ async function loadStats() {
     bar.innerHTML = "";
   }
 }
+
+// ---------- autocomplete do nome da empresa (criar manualmente) ----------
+const ndCompanyInput = document.getElementById("nd-company");
+const ndSuggestionsBox = document.getElementById("nd-company-suggestions");
+let ndAutocompleteTimer = null;
+
+ndCompanyInput.addEventListener("input", () => {
+  clearTimeout(ndAutocompleteTimer);
+  const q = ndCompanyInput.value.trim();
+  if (q.length < 2) {
+    ndSuggestionsBox.classList.remove("show");
+    ndSuggestionsBox.innerHTML = "";
+    return;
+  }
+  ndAutocompleteTimer = setTimeout(() => fetchNdSuggestions(q), 250);
+});
+
+async function fetchNdSuggestions(q) {
+  try {
+    const res = await fetch(`${API_BASE}/api/dealers/suggest?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    renderNdSuggestions(data.results || []);
+  } catch (err) {
+    ndSuggestionsBox.classList.remove("show");
+  }
+}
+
+function renderNdSuggestions(results) {
+  if (results.length === 0) {
+    ndSuggestionsBox.classList.remove("show");
+    ndSuggestionsBox.innerHTML = "";
+    return;
+  }
+
+  ndSuggestionsBox.innerHTML = results.map(r => `
+    <div class="autocomplete-item"
+         data-name="${escapeAttr(r.company_name)}"
+         data-city="${escapeAttr(r.city || "")}"
+         data-postal="${escapeAttr(r.postal_code || "")}"
+         data-phone="${escapeAttr(r.phone || "")}">
+      <div class="ac-name">${escapeAttr(r.company_name)}</div>
+      <div class="ac-meta">${escapeAttr(r.city || "")}${r.postal_code ? " · " + escapeAttr(r.postal_code) : ""}</div>
+    </div>
+  `).join("");
+  ndSuggestionsBox.classList.add("show");
+
+  ndSuggestionsBox.querySelectorAll(".autocomplete-item").forEach(item => {
+    item.addEventListener("click", () => {
+      ndCompanyInput.value = item.dataset.name;
+      document.getElementById("nd-city").value = item.dataset.city;
+      document.getElementById("nd-postal").value = item.dataset.postal;
+      const phoneField = document.getElementById("nd-phone");
+      if (!phoneField.value.trim() && item.dataset.phone) phoneField.value = item.dataset.phone;
+      ndSuggestionsBox.classList.remove("show");
+      ndSuggestionsBox.innerHTML = "";
+    });
+  });
+}
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#nd-company-suggestions") && e.target !== ndCompanyInput) {
+    ndSuggestionsBox.classList.remove("show");
+  }
+});
 
 // ---------- criar concessionário manualmente ----------
 document.getElementById("btn-toggle-new-dealer").addEventListener("click", () => {
@@ -523,6 +621,71 @@ async function resendConfirmation(id) {
   } else {
     showToast("Código de confirmação reenviado.");
   }
+}
+
+// ---------- lista oficial ----------
+let officialDealersCache = [];
+
+async function loadOfficialDealers() {
+  const area = document.getElementById("official-area");
+  area.innerHTML = '<div class="status-line">A carregar…</div>';
+
+  try {
+    const res = await adminFetch("/api/admin/official-dealers");
+    const data = await res.json();
+    officialDealersCache = data.results || [];
+    applyOfficialFilter();
+  } catch (err) {
+    area.innerHTML = '<div class="status-line">Erro ao carregar.</div>';
+  }
+}
+
+function applyOfficialFilter() {
+  const filter = document.getElementById("official-filter").value;
+  let filtered = officialDealersCache;
+
+  if (filter === "unregistered") filtered = officialDealersCache.filter(o => !o.dealer_id);
+  if (filter === "pending") filtered = officialDealersCache.filter(o => o.dealer_id && !o.verified);
+  if (filter === "verified") filtered = officialDealersCache.filter(o => o.dealer_id && o.verified);
+
+  renderOfficialDealers(filtered);
+}
+
+document.getElementById("official-filter").addEventListener("change", applyOfficialFilter);
+
+function renderOfficialDealers(list) {
+  const area = document.getElementById("official-area");
+  if (list.length === 0) {
+    area.innerHTML = '<div class="status-line">Nenhum resultado para este filtro.</div>';
+    return;
+  }
+
+  const rows = list.map(o => {
+    let badge;
+    if (!o.dealer_id) badge = '<span class="badge none">não registado</span>';
+    else if (o.verified) badge = '<span class="badge ok">verificado</span>';
+    else badge = '<span class="badge pending">pendente</span>';
+
+    return `
+      <tr>
+        <td>${escapeAttr(o.company_name)}</td>
+        <td>${escapeAttr(o.city || "")}</td>
+        <td>${escapeAttr(o.phone || "")}</td>
+        <td>${badge}</td>
+        <td>${o.email ? escapeAttr(o.email) : "—"}</td>
+      </tr>
+    `;
+  }).join("");
+
+  area.innerHTML = `
+    <div class="hint" style="margin-bottom: 0.75rem;">A mostrar ${list.length} de ${officialDealersCache.length} concessionários oficiais.</div>
+    <table>
+      <thead>
+        <tr><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>Estado</th><th>Email (se registado)</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
 }
 
 // ---------- peças ----------

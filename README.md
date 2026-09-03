@@ -179,10 +179,15 @@ só quem souber o URL (e a password) consegue entrar.
 - **Concessionários**: editar nome/telefone/email/cidade, marcar como
   verificado manualmente, eliminar conta (e as suas peças), ver data
   de registo e de verificação, reenviar código de confirmação de
-  email a quem ficou preso nesse passo, **criar conta manualmente**
-  já verificada e com email confirmado (sem código nenhum) — para
-  quem pediu para ser registado diretamente, sem passar pelo fluxo
-  normal.
+  email a quem ficou preso nesse passo, criar conta manualmente
+  já verificada e com email confirmado (sem código nenhum, com
+  autofill do nome a partir da lista oficial) — para quem pediu para
+  ser registado diretamente, sem passar pelo fluxo normal.
+- **Lista Oficial**: os 97 concessionários da Renault, cruzados com o
+  estado de registo na plataforma — quem já está registado (e se está
+  verificado) e quem ainda não apareceu. Filtro rápido para veres só
+  quem falta registar, útil para saberes a quem vale a pena voltar a
+  lembrar sobre a plataforma.
 - **Peças**: editar referência/descrição/quantidade/estado, eliminar
   qualquer peça de qualquer concessionário, filtrar por concessionário,
   ver data de publicação/última atualização.

@@ -19,6 +19,7 @@
 //
 //   Painel de administrador (protegido por header x-admin-password):
 //   GET    /api/admin/stats                 — estatísticas rápidas (contas, verificados, peças)
+//   GET    /api/admin/official-dealers      — lista oficial (97) cruzada com estado de registo
 //   GET    /api/admin/dealers               — lista todos os concessionários
 //   POST   /api/admin/dealers               — cria concessionário já verificado (bypass total)
 //   PATCH  /api/admin/dealers/:id           — edita um concessionário (nome, telefone, email, verified)
@@ -542,6 +543,21 @@ export default {
         activeListings: listingCounts?.total || 0,
         listingsLast7Days: recentListings?.total || 0,
       });
+    }
+
+    // ---------- lista oficial cruzada com estado de registo ----------
+    if (path === "/api/admin/official-dealers" && request.method === "GET") {
+      const rows = await env.DB
+        .prepare(
+          `SELECT
+             od.id, od.company_name, od.city, od.postal_code, od.phone,
+             d.id AS dealer_id, d.verified, d.email, d.email_confirmed
+           FROM official_dealers od
+           LEFT JOIN dealers d ON d.official_dealer_id = od.id
+           ORDER BY od.company_name`
+        )
+        .all();
+      return json({ results: rows.results || [] });
     }
 
     // ---------- listar todos os concessionários ----------
