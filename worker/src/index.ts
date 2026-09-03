@@ -20,6 +20,7 @@
 //   Painel de administrador (protegido por header x-admin-password):
 //   GET    /api/admin/stats                 — estatísticas rápidas (contas, verificados, peças)
 //   GET    /api/admin/dealers               — lista todos os concessionários
+//   POST   /api/admin/dealers               — cria concessionário já verificado (bypass total)
 //   PATCH  /api/admin/dealers/:id           — edita um concessionário (nome, telefone, email, verified)
 //   DELETE /api/admin/dealers/:id           — elimina um concessionário e as suas peças
 //   POST   /api/admin/dealers/:id/resend-confirmation — reenvia código de confirmação de email
@@ -553,6 +554,74 @@ export default {
         )
         .all();
       return json({ results: rows.results || [] });
+    }
+
+    // ---------- criar concessionário manualmente (bypass total) ----------
+    // Usado pelo admin para adicionar alguém que pediu para ser
+    // registado sem passar pelo fluxo normal (sem código de
+    // confirmação de email, já fica verified=1 e email_confirmed=1
+    // de imediato). Ainda tenta ligar à lista oficial da Renault por
+    // telefone/nome, tal como o registo normal, para manter os dados
+    // consistentes -- mas não bloqueia a criação se não encontrar match.
+    if (path === "/api/admin/dealers" && request.method === "POST") {
+      const body = await request.json<any>().catch(() => null);
+      if (!body?.companyName || !body?.phone || !body?.email) {
+        return json({ error: "Nome da empresa, telefone e email são obrigatórios." }, { status: 400 });
+      }
+
+      const phoneNormalized = normalizePhone(body.phone);
+      if (phoneNormalized.length < 9) {
+        return json({ error: "Telefone inválido." }, { status: 400 });
+      }
+
+      const verification = await verifyAgainstOfficialList(env.DB, {
+        companyName: body.companyName,
+        phone: body.phone,
+        city: body.city,
+        postalCode: body.postalCode,
+      });
+
+      // Ao contrário do registo normal, aqui não se bloqueia por
+      // duplicado -- é o admin a decidir, conscientemente, criar a
+      // conta. Se já existir uma igual, é ele que sabe o que faz.
+      // O email continua a ter de ser único (restrição da BD) --
+      // captura-se esse erro para dar uma mensagem clara.
+      const now = new Date().toISOString();
+      let result;
+      try {
+        result = await env.DB
+          .prepare(
+            `INSERT INTO dealers
+              (company_name, contact_name, phone, phone_normalized, email, email_confirmed,
+               address, postal_code, city, official_dealer_id, verified, verified_at, verification_method)
+             VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 1, ?, 'manual_admin')`
+          )
+          .bind(
+            body.companyName,
+            body.contactName || null,
+            body.phone,
+            phoneNormalized,
+            body.email,
+            body.address || null,
+            body.postalCode || null,
+            body.city || null,
+            verification.officialDealerId,
+            now
+          )
+          .run();
+      } catch (err: any) {
+        if (String(err?.message || "").includes("UNIQUE")) {
+          return json({ error: "Já existe uma conta com este email." }, { status: 409 });
+        }
+        throw err;
+      }
+
+      return json({
+        dealerId: result.meta.last_row_id,
+        message: verification.officialDealerId
+          ? "Concessionário criado e ligado à lista oficial."
+          : "Concessionário criado (sem correspondência na lista oficial da Renault).",
+      });
     }
 
     // ---------- editar um concessionário ----------

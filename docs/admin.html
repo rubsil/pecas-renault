@@ -108,6 +108,34 @@
   .settings-box .hint { font-size: 0.8rem; color: var(--ink-faint); margin-bottom: 1rem; }
   .settings-box button { padding: 0.6rem 1.2rem; font-weight: 700; background: var(--ink); color: var(--paper); border: none; border-radius: var(--radius); cursor: pointer; }
 
+  .btn-toggle-form {
+    padding: 0.55rem 1rem; font-size: 0.85rem; font-weight: 600; margin-bottom: 1rem;
+    background: var(--paper-raised); border: 1px dashed var(--line); border-radius: var(--radius);
+    color: var(--accent-text); cursor: pointer;
+  }
+  .btn-toggle-form:hover { background: var(--accent-soft); border-style: solid; border-color: var(--accent); }
+
+  .new-dealer-form {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1.25rem; margin-bottom: 1.5rem;
+  }
+  .new-dealer-form .hint { font-size: 0.8rem; color: var(--ink-faint); }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
+  .form-grid label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem; }
+  .form-grid input {
+    width: 100%; padding: 0.55rem 0.7rem; font-size: 0.88rem;
+    border: 1px solid var(--line); border-radius: var(--radius); font-family: var(--sans);
+  }
+  .listing-edit-actions { display: flex; gap: 0.5rem; }
+  .edit-save-btn, .edit-cancel-btn {
+    padding: 0.55rem 1.1rem; font-size: 0.85rem; font-weight: 700; border-radius: var(--radius);
+    cursor: pointer; border: 1px solid var(--ink);
+  }
+  .edit-save-btn { background: var(--ink); color: var(--paper); }
+  .edit-save-btn:hover { background: var(--accent); border-color: var(--accent); }
+  .edit-cancel-btn { background: var(--paper-raised); color: var(--ink-soft); border-color: var(--line); }
+  .edit-cancel-btn:hover { background: var(--paper); }
+
   .status-line { text-align: center; color: var(--ink-faint); padding: 2rem 0; font-size: 0.9rem; }
 
   .listings-filter { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; font-size: 0.85rem; }
@@ -153,6 +181,45 @@
     </div>
 
     <div class="panel active" id="panel-dealers">
+      <button class="btn-toggle-form" id="btn-toggle-new-dealer">+ Criar concessionário manualmente</button>
+
+      <div class="new-dealer-form" id="new-dealer-form" style="display: none;">
+        <div class="hint" style="margin-bottom: 0.75rem;">
+          Cria a conta já verificada e com email confirmado — sem código
+          nenhum. Usa para quem pediu para ser registado diretamente.
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Nome da empresa</label>
+            <input type="text" id="nd-company" placeholder="Auto Exemplo, Lda" />
+          </div>
+          <div>
+            <label>Pessoa de contacto</label>
+            <input type="text" id="nd-contact" placeholder="opcional" />
+          </div>
+          <div>
+            <label>Telefone</label>
+            <input type="tel" id="nd-phone" placeholder="21 234 5678" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input type="email" id="nd-email" placeholder="pecas@exemplo.pt" />
+          </div>
+          <div>
+            <label>Cidade</label>
+            <input type="text" id="nd-city" placeholder="opcional" />
+          </div>
+          <div>
+            <label>Código postal</label>
+            <input type="text" id="nd-postal" placeholder="opcional, ajuda no matching" />
+          </div>
+        </div>
+        <div class="listing-edit-actions" style="margin-top: 0.75rem;">
+          <button class="edit-save-btn" id="btn-create-dealer">Criar conta</button>
+          <button class="edit-cancel-btn" id="btn-cancel-new-dealer">Cancelar</button>
+        </div>
+      </div>
+
       <div id="dealers-area"><div class="status-line">A carregar…</div></div>
     </div>
 
@@ -302,6 +369,49 @@ async function loadStats() {
     bar.innerHTML = "";
   }
 }
+
+// ---------- criar concessionário manualmente ----------
+document.getElementById("btn-toggle-new-dealer").addEventListener("click", () => {
+  const form = document.getElementById("new-dealer-form");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+
+document.getElementById("btn-cancel-new-dealer").addEventListener("click", () => {
+  document.getElementById("new-dealer-form").style.display = "none";
+});
+
+document.getElementById("btn-create-dealer").addEventListener("click", async () => {
+  const companyName = document.getElementById("nd-company").value.trim();
+  const contactName = document.getElementById("nd-contact").value.trim();
+  const phone = document.getElementById("nd-phone").value.trim();
+  const email = document.getElementById("nd-email").value.trim();
+  const city = document.getElementById("nd-city").value.trim();
+  const postalCode = document.getElementById("nd-postal").value.trim();
+
+  if (!companyName || !phone || !email) {
+    showToast("Nome, telefone e email são obrigatórios.");
+    return;
+  }
+
+  const res = await adminFetch("/api/admin/dealers", {
+    method: "POST",
+    body: JSON.stringify({ companyName, contactName, phone, email, city, postalCode }),
+  });
+  const data = await res.json();
+
+  if (!res.ok) {
+    showToast(data.error || "Não foi possível criar a conta.");
+    return;
+  }
+
+  showToast(data.message);
+  document.getElementById("new-dealer-form").style.display = "none";
+  ["nd-company", "nd-contact", "nd-phone", "nd-email", "nd-city", "nd-postal"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+  loadStats();
+  loadDealers();
+});
 
 async function loadDealers() {
   const area = document.getElementById("dealers-area");
