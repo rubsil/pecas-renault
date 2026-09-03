@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rede de Peças Paradas — stock entre concessionários Renault</title>
+<title>Stock Rede Renault — peças sem rotatividade local, partilhadas entre concessionários</title>
 <style>
   :root {
     --ink: #1a1d1a;
@@ -37,15 +37,18 @@
     border-bottom: 2px solid var(--ink);
     padding: 1.25rem 1.5rem;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     background: var(--paper-raised);
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
   }
 
   .brand {
     display: flex;
     align-items: baseline;
     gap: 0.6rem;
+    flex-wrap: wrap;
   }
 
   .brand-mark {
@@ -57,16 +60,25 @@
     color: var(--paper);
     padding: 0.15rem 0.4rem;
     border-radius: 3px;
+    align-self: center;
+  }
+
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
   }
 
   .brand-name {
     font-weight: 700;
     font-size: 1.15rem;
+    line-height: 1.1;
   }
 
   .brand-sub {
     color: var(--ink-faint);
-    font-size: 0.85rem;
+    font-size: 0.78rem;
+    line-height: 1.2;
   }
 
   nav a {
@@ -287,8 +299,10 @@
 <header>
   <div class="brand">
     <span class="brand-mark">R//D</span>
-    <span class="brand-name">Peças Paradas</span>
-    <span class="brand-sub">rede de concessionários</span>
+    <div class="brand-text">
+      <span class="brand-name">Stock Rede Renault</span>
+      <span class="brand-sub">Peças sem rotatividade local, partilhadas entre concessionários</span>
+    </div>
   </div>
   <nav>
     <span class="nav-dealer-name" id="nav-dealer-name" style="display: none;"></span>
@@ -323,7 +337,7 @@
 </main>
 
 <footer>
-  Rede de Peças Paradas é uma plataforma independente, feita por concessionários para concessionários. Sem ligação oficial à Renault ou Dacia.
+  Stock Rede Renault é uma plataforma independente, feita por concessionários para concessionários. Sem ligação oficial à Renault ou Dacia.
 </footer>
 
 <script>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Publicar peça — Rede de Peças Paradas</title>
+<title>Publicar peça — Stock Rede Renault</title>
 <style>
   :root {
     --ink: #1a1d1a; --ink-soft: #4a4e49; --ink-faint: #82867f;
@@ -19,11 +19,14 @@
 
   header {
     border-bottom: 2px solid var(--ink); padding: 1.25rem 1.5rem;
-    display: flex; align-items: baseline; justify-content: space-between; background: var(--paper-raised);
+    display: flex; align-items: center; justify-content: space-between; background: var(--paper-raised);
+    flex-wrap: wrap; gap: 0.5rem 1.5rem;
   }
-  .brand { display: flex; align-items: baseline; gap: 0.6rem; }
-  .brand-mark { font-family: var(--mono); font-size: 1rem; font-weight: 700; background: var(--ink); color: var(--paper); padding: 0.15rem 0.4rem; border-radius: 3px; }
-  .brand-name { font-weight: 700; font-size: 1.15rem; }
+  .brand { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .brand-mark { font-family: var(--mono); font-size: 1rem; font-weight: 700; background: var(--ink); color: var(--paper); padding: 0.15rem 0.4rem; border-radius: 3px; align-self: center; }
+  .brand-text { display: flex; flex-direction: column; gap: 0.1rem; }
+  .brand-name { font-weight: 700; font-size: 1.15rem; line-height: 1.1; }
+  .brand-sub { color: var(--ink-faint); font-size: 0.78rem; line-height: 1.2; }
   nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.9rem; margin-left: 1.25rem; }
   nav a:hover { color: var(--ink); text-decoration: underline; }
   .nav-dealer-name { font-weight: 700; font-size: 1rem; color: var(--ink); margin-right: 0.5rem; }
@@ -80,7 +83,10 @@
 <header>
   <div class="brand">
     <span class="brand-mark">R//D</span>
-    <span class="brand-name">Peças Paradas</span>
+    <div class="brand-text">
+      <span class="brand-name">Stock Rede Renault</span>
+      <span class="brand-sub">Peças sem rotatividade local, partilhadas entre concessionários</span>
+    </div>
   </div>
   <nav>
     <span class="nav-dealer-name" id="nav-dealer-name" style="display: none;"></span>
