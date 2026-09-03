@@ -186,6 +186,13 @@
     grid-column: 1 / -1;
   }
 
+  .result-alt-refs {
+    color: var(--ink-soft);
+    font-size: 0.78rem;
+    font-family: var(--mono);
+    grid-column: 1 / -1;
+  }
+
   .result-qty {
     font-family: var(--mono);
     font-size: 0.85rem;
@@ -374,6 +381,7 @@ function renderResults(results, emptyMessage) {
       <div class="result-ref">${escapeHtml(r.reference)}</div>
       <div class="result-qty">${r.quantity} un.</div>
       ${r.description ? `<div class="result-desc">${escapeHtml(r.description)}</div>` : ""}
+      ${r.alt_references ? `<div class="result-alt-refs">Substitui: ${escapeHtml(r.alt_references)}</div>` : ""}
       ${r.notes ? `<div class="result-notes">${escapeHtml(r.notes)}</div>` : ""}
       <div class="result-dealer">
         <strong>${escapeHtml(r.company_name)}</strong>

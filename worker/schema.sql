@@ -90,3 +90,15 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_password', '');
+
+-- Referências de substituição por peça (ver worker/migrations/0006).
+CREATE TABLE IF NOT EXISTS listing_alt_references (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  listing_id INTEGER NOT NULL REFERENCES parts_listings(id),
+  reference TEXT NOT NULL,
+  reference_normalized TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_alt_ref_normalized ON listing_alt_references(reference_normalized);
+CREATE INDEX IF NOT EXISTS idx_alt_ref_listing ON listing_alt_references(listing_id);

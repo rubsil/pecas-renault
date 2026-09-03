@@ -56,6 +56,29 @@
   input#reference { font-family: var(--mono); font-size: 1.05rem; }
   input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
 
+  .tags-input-wrap {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 0.6rem; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--paper-raised);
+  }
+  .tags-input-wrap:focus-within { border-color: var(--accent); }
+  .tags-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .tag-pill {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    background: var(--accent-soft); color: var(--accent-text); font-family: var(--mono);
+    font-size: 0.85rem; font-weight: 600; padding: 0.25rem 0.3rem 0.25rem 0.6rem; border-radius: 999px;
+  }
+  .tag-pill button {
+    all: unset; cursor: pointer; width: 1.1rem; height: 1.1rem; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+    color: var(--accent-text); line-height: 1;
+  }
+  .tag-pill button:hover { background: var(--accent); color: white; }
+  #alt-references-input {
+    flex: 1; min-width: 140px; border: none; padding: 0.3rem 0; background: transparent;
+  }
+  #alt-references-input:focus { outline: none; }
+
   .row-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
   button.submit {
@@ -113,6 +136,13 @@
     <label for="reference">Referência da peça</label>
     <input type="text" id="reference" placeholder="8200123456" required />
 
+    <label for="alt-references-input">Referências de substituição</label>
+    <div class="tags-input-wrap" id="tags-wrap">
+      <div class="tags-list" id="tags-list"></div>
+      <input type="text" id="alt-references-input" placeholder="escreve uma referência e Enter" />
+    </div>
+    <div class="hint" style="margin-top: 0.3rem;">Insere aqui as referências que sabes que são de substituição desta peça, para facilitar a pesquisa e tornar mais eficaz encontrarem a peça. Escreve uma referência e carrega Enter — não precisas de vírgulas.</div>
+
     <label for="description">Descrição</label>
     <input type="text" id="description" placeholder="ex: Filtro de ar Clio IV" />
 
@@ -131,6 +161,75 @@
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 const token = localStorage.getItem("pt_session");
 const dealerNameEl = document.getElementById("nav-dealer-name");
+
+// ---------- componente de tags (referências de substituição) ----------
+// Reutilizável: cria um "gestor de tags" ligado a um input + lista.
+// addTag() ignora duplicados (comparação simples, sem normalizar --
+// a normalização "a sério" fica ao critério do backend).
+function createTagsManager(inputId, listId) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  let tags = [];
+
+  function render() {
+    list.innerHTML = tags.map((tag, i) => `
+      <span class="tag-pill">
+        ${escapeHtmlLocal2(tag)}
+        <button type="button" data-index="${i}" aria-label="Remover">✕</button>
+      </span>
+    `).join("");
+    list.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        tags.splice(Number(btn.dataset.index), 1);
+        render();
+      });
+    });
+  }
+
+  function addTag(value) {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    if (tags.some(t => t.toLowerCase() === trimmed.toLowerCase())) return; // sem duplicados óbvios
+    tags.push(trimmed);
+    render();
+  }
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "," || e.key === " ") {
+      e.preventDefault();
+      addTag(input.value);
+      input.value = "";
+    } else if (e.key === "Backspace" && input.value === "" && tags.length > 0) {
+      // Apagar a última tag ao carregar Backspace num input já vazio --
+      // gesto comum neste tipo de componente, evita ter de clicar no ✕.
+      tags.pop();
+      render();
+    }
+  });
+
+  // Também aceita colar uma lista com vírgulas/espaços de uma vez.
+  input.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text") || "";
+    if (/[,\s]/.test(text)) {
+      e.preventDefault();
+      text.split(/[,\s]+/).forEach(addTag);
+      input.value = "";
+    }
+  });
+
+  return {
+    getTags: () => [...tags],
+    setTags: (newTags) => { tags = [...newTags]; render(); },
+  };
+}
+
+function escapeHtmlLocal2(str) {
+  const div = document.createElement("div");
+  div.textContent = str || "";
+  return div.innerHTML;
+}
+
+const altRefsManager = createTagsManager("alt-references-input", "tags-list");
 
 async function init() {
   if (!token) return;
@@ -166,6 +265,7 @@ document.getElementById("publish-form").addEventListener("submit", async (e) => 
   const description = document.getElementById("description").value.trim();
   const quantity = document.getElementById("quantity").value;
   const notes = document.getElementById("notes").value.trim();
+  const altReferences = altRefsManager.getTags();
 
   if (!reference) {
     showMessage(msg, "A referência é obrigatória.", "error");
@@ -176,7 +276,7 @@ document.getElementById("publish-form").addEventListener("submit", async (e) => 
     const res = await fetch(`${API_BASE}/api/listings`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ reference, description, quantity, brand: "renault", notes }),
+      body: JSON.stringify({ reference, description, quantity, brand: "renault", notes, altReferences }),
     });
     const data = await res.json();
 
@@ -188,6 +288,7 @@ document.getElementById("publish-form").addEventListener("submit", async (e) => 
     showMessage(msg, "Peça publicada. Já aparece nas pesquisas.", "success");
     document.getElementById("publish-form").reset();
     document.getElementById("quantity").value = 1;
+    altRefsManager.setTags([]);
   } catch (err) {
     showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
   }

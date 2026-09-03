@@ -115,6 +115,7 @@
   .listing-ref { font-family: var(--mono); font-weight: 700; }
   .listing-meta { color: var(--ink-faint); font-size: 0.8rem; }
   .listing-notes { color: var(--ink-faint); font-size: 0.78rem; font-style: italic; margin-top: 0.15rem; }
+  .listing-alt-refs { color: var(--ink-soft); font-size: 0.76rem; font-family: var(--mono); margin-top: 0.1rem; }
 
   .listing-controls { display: flex; align-items: center; gap: 0.4rem; }
   .qty-btn {
@@ -147,6 +148,31 @@
     padding: 0.5rem 0.6rem; font-size: 0.85rem; border: 1px solid var(--line);
     border-radius: var(--radius); font-family: var(--sans); background: var(--paper-raised); color: var(--ink);
   }
+  .edit-form-label { font-size: 0.78rem; font-weight: 600; color: var(--ink-soft); margin-top: -0.15rem; }
+
+  .tags-input-wrap {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
+    padding: 0.4rem 0.5rem; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--paper-raised);
+  }
+  .tags-input-wrap:focus-within { border-color: var(--accent); }
+  .tags-list { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .tag-pill {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    background: var(--accent-soft); color: var(--accent-text); font-family: var(--mono);
+    font-size: 0.8rem; font-weight: 600; padding: 0.2rem 0.25rem 0.2rem 0.5rem; border-radius: 999px;
+  }
+  .tag-pill button {
+    all: unset; cursor: pointer; width: 1rem; height: 1rem; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 0.72rem;
+    color: var(--accent-text); line-height: 1;
+  }
+  .tag-pill button:hover { background: var(--accent); color: white; }
+  .edit-alt-refs-input {
+    flex: 1; min-width: 120px; border: none !important; padding: 0.2rem 0 !important; background: transparent !important;
+  }
+  .edit-alt-refs-input:focus { outline: none; }
+
   .listing-edit-actions { display: flex; gap: 0.5rem; }
   .edit-save-btn, .edit-cancel-btn {
     padding: 0.4rem 0.9rem; font-size: 0.82rem; font-weight: 600; border-radius: var(--radius);
@@ -286,6 +312,66 @@
 <script>
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 let pendingDealerId = null;
+
+// ---------- componente de tags (referências de substituição) ----------
+// Um gestor por peça editável (chaves = listing_id), porque o dashboard
+// pode ter várias peças na lista ao mesmo tempo, cada uma com o seu
+// próprio formulário de edição escondido.
+const altRefsManagers = {};
+
+function createTagsManager(inputId, listId) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  let tags = [];
+
+  function render() {
+    list.innerHTML = tags.map((tag, i) => `
+      <span class="tag-pill">
+        ${escapeHtmlLocal(tag)}
+        <button type="button" data-index="${i}" aria-label="Remover">✕</button>
+      </span>
+    `).join("");
+    list.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        tags.splice(Number(btn.dataset.index), 1);
+        render();
+      });
+    });
+  }
+
+  function addTag(value) {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    if (tags.some(t => t.toLowerCase() === trimmed.toLowerCase())) return;
+    tags.push(trimmed);
+    render();
+  }
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "," || e.key === " ") {
+      e.preventDefault();
+      addTag(input.value);
+      input.value = "";
+    } else if (e.key === "Backspace" && input.value === "" && tags.length > 0) {
+      tags.pop();
+      render();
+    }
+  });
+
+  input.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text") || "";
+    if (/[,\s]/.test(text)) {
+      e.preventDefault();
+      text.split(/[,\s]+/).forEach(addTag);
+      input.value = "";
+    }
+  });
+
+  return {
+    getTags: () => [...tags],
+    setTags: (newTags) => { tags = [...newTags]; render(); },
+  };
+}
 
 // ---------- tabs ----------
 document.querySelectorAll(".tab").forEach(tab => {
@@ -617,6 +703,7 @@ function renderMyListings(listings, token) {
           <div>
             <div class="listing-ref">${escapeHtmlLocal(l.reference)}</div>
             <div class="listing-meta">${statusLabel}${l.description ? " · " + escapeHtmlLocal(l.description) : ""}</div>
+            ${l.alt_references ? `<div class="listing-alt-refs">Substitui: ${escapeHtmlLocal(l.alt_references)}</div>` : ""}
             ${l.notes ? `<div class="listing-notes">${escapeHtmlLocal(l.notes)}</div>` : ""}
           </div>
           <div class="listing-controls">
@@ -629,6 +716,11 @@ function renderMyListings(listings, token) {
         </div>
         <div class="listing-edit-form" id="edit-form-${l.id}" style="display: none;">
           <input type="text" class="edit-description" placeholder="Descrição" value="${escapeAttrLocal(l.description || "")}" />
+          <label class="edit-form-label">Referências de substituição</label>
+          <div class="tags-input-wrap" id="edit-tags-wrap-${l.id}">
+            <div class="tags-list" id="edit-tags-list-${l.id}"></div>
+            <input type="text" class="edit-alt-refs-input" id="edit-alt-refs-input-${l.id}" placeholder="escreve uma referência e Enter" />
+          </div>
           <textarea class="edit-notes" rows="2" placeholder="Notas (ex: embalagem selada)">${escapeHtmlLocal(l.notes || "")}</textarea>
           <div class="listing-edit-actions">
             <button class="edit-save-btn" data-id="${l.id}">Guardar</button>
@@ -638,6 +730,13 @@ function renderMyListings(listings, token) {
       </div>
     `;
     container.appendChild(row);
+
+    // Cada peça tem o seu próprio gestor de tags, pré-preenchido com as
+    // alternativas que já tinha (vêm do backend como string "a, b, c").
+    const existingAltRefs = (l.alt_references || "").split(",").map(s => s.trim()).filter(Boolean);
+    const manager = createTagsManager(`edit-alt-refs-input-${l.id}`, `edit-tags-list-${l.id}`);
+    manager.setTags(existingAltRefs);
+    altRefsManagers[l.id] = manager;
   }
 
   container.querySelectorAll("button[data-action]").forEach(btn => {
@@ -662,11 +761,12 @@ async function saveListingEdit(listingId, token) {
   const form = document.getElementById(`edit-form-${listingId}`);
   const description = form.querySelector(".edit-description").value.trim();
   const notes = form.querySelector(".edit-notes").value.trim();
+  const altReferences = altRefsManagers[listingId] ? altRefsManagers[listingId].getTags() : [];
 
   await fetch(`${API_BASE}/api/listings/${listingId}`, {
     method: "PATCH",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-    body: JSON.stringify({ description, notes }),
+    body: JSON.stringify({ description, notes, altReferences }),
   });
   loadDashboard();
 }

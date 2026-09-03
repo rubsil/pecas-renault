@@ -136,6 +136,10 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
 - [ ] **Aplicar a migração `worker/migrations/0005_admin_activity_log.sql`**
       na D1 — cria a tabela `admin_activity_log`, usada pelo separador
       "Log" do painel. Sem isto, esse separador falha ao carregar.
+- [ ] **Aplicar a migração `worker/migrations/0006_listing_alt_references.sql`**
+      na D1 — cria a tabela `listing_alt_references`, usada para as
+      referências de substituição de cada peça. Sem isto, publicar ou
+      editar uma peça com referências alternativas falha.
 - [x] **Definir o secret `ADMIN_PASSWORD`** no Worker, para poderes
       entrar no painel de administrador (`docs/admin.html`). **Usa
       `wrangler secret put ADMIN_PASSWORD`** (a partir da pasta
@@ -266,3 +270,10 @@ que o email corrigido é mesmo válido antes de voltar a servir para login.
 - A pesquisa de peças é pública (não exige login) — só publicar exige conta.
   Isto reduz fricção para quem só quer verificar se algo existe antes de
   decidir registar-se.
+- **Referências de substituição**: uma peça pode ter vários códigos ao
+  longo do tempo (referência antiga, nova, ou de fornecedor diferente).
+  Ao publicar ou editar, dá para adicionar referências alternativas
+  através de um campo de "tags" (escreve e carrega Enter — sem
+  vírgulas manuais). A pesquisa procura tanto na referência principal
+  como em todas as alternativas, para quem procura pelo código "errado"
+  continuar a encontrar a peça (ver `worker/migrations/0006_listing_alt_references.sql`).

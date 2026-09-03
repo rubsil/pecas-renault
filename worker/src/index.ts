@@ -121,6 +121,40 @@ function csvResponse(filename: string, header: string[], rows: (string | number 
   });
 }
 
+/**
+ * Grava as referências de substituição de uma peça. Substitui sempre
+ * o conjunto anterior (apaga e reinsere) em vez de tentar comparar
+ * diferenças -- mais simples e o volume por peça é sempre pequeno.
+ *
+ * Ignora entradas vazias, duplicadas entre si, ou iguais à referência
+ * principal (não faz sentido a peça ser "alternativa de si própria").
+ */
+async function saveAltReferences(
+  db: D1Database,
+  listingId: number,
+  rawAltReferences: unknown,
+  mainReferenceNormalized: string
+): Promise<void> {
+  await db.prepare("DELETE FROM listing_alt_references WHERE listing_id = ?").bind(listingId).run();
+
+  if (!Array.isArray(rawAltReferences)) return;
+
+  const seen = new Set<string>([mainReferenceNormalized]);
+  for (const raw of rawAltReferences) {
+    if (typeof raw !== "string") continue;
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const normalized = normalizeReference(trimmed);
+    if (normalized.length < 3 || seen.has(normalized)) continue;
+    seen.add(normalized);
+
+    await db
+      .prepare("INSERT INTO listing_alt_references (listing_id, reference, reference_normalized) VALUES (?, ?, ?)")
+      .bind(listingId, trimmed, normalized)
+      .run();
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -369,7 +403,10 @@ export default {
         )
         .run();
 
-      return json({ listingId: result.meta.last_row_id, message: "Peça publicada." });
+      const listingId = result.meta.last_row_id as number;
+      await saveAltReferences(env.DB, listingId, body.altReferences, referenceNormalized);
+
+      return json({ listingId, message: "Peça publicada." });
     }
 
     // ---------- atualizar peça (quantidade, estado) ----------
@@ -405,14 +442,17 @@ export default {
         return json({ message: "Quantidade atualizada.", quantity: newQuantity, status: newStatus });
       }
 
-      // Editar descrição e/ou notas (ex: corrigir erro de escrita,
-      // acrescentar "já reservada para cliente X"). Só atualiza os
-      // campos que vierem no pedido — não sobrescreve o outro com null.
-      if (typeof body?.description === "string" || typeof body?.notes === "string") {
+      // Editar descrição, notas e/ou referências de substituição (ex:
+      // corrigir erro de escrita, acrescentar "já reservada para
+      // cliente X", ou adicionar códigos alternativos que faltavam).
+      // Só atualiza os campos que vierem no pedido — não sobrescreve
+      // o outro com null. altReferences, quando vem, substitui sempre
+      // o conjunto anterior por completo (mais simples que diff).
+      if (typeof body?.description === "string" || typeof body?.notes === "string" || Array.isArray(body?.altReferences)) {
         const current = await env.DB
-          .prepare("SELECT description, notes FROM parts_listings WHERE id = ?")
+          .prepare("SELECT description, notes, reference_normalized FROM parts_listings WHERE id = ?")
           .bind(listingId)
-          .first<{ description: string | null; notes: string | null }>();
+          .first<{ description: string | null; notes: string | null; reference_normalized: string }>();
 
         const newDescription = typeof body.description === "string" ? body.description : current?.description ?? null;
         const newNotes = typeof body.notes === "string" ? body.notes : current?.notes ?? null;
@@ -421,7 +461,12 @@ export default {
           .prepare("UPDATE parts_listings SET description = ?, notes = ?, updated_at = datetime('now') WHERE id = ?")
           .bind(newDescription, newNotes, listingId)
           .run();
-        return json({ message: "Descrição e notas atualizadas." });
+
+        if (Array.isArray(body.altReferences)) {
+          await saveAltReferences(env.DB, listingId, body.altReferences, current?.reference_normalized || "");
+        }
+
+        return json({ message: "Peça atualizada." });
       }
 
       // Ou atualizar o estado diretamente (ex: marcar vendida sem
@@ -467,7 +512,8 @@ export default {
         .prepare(
           `SELECT
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
-             d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified
+             d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified,
+             (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            WHERE pl.status = 'active'
@@ -486,18 +532,24 @@ export default {
         return json({ error: "Indica pelo menos 2 caracteres da referência." }, { status: 400 });
       }
 
+      // Procura tanto na referência principal como nas alternativas --
+      // uma peça pode ter várias referências (código antigo, código de
+      // fornecedor diferente, etc). DISTINCT porque um match múltiplo
+      // em alternativas não deve duplicar a linha da peça.
       const rows = await env.DB
         .prepare(
-          `SELECT
+          `SELECT DISTINCT
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
-             d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified
+             d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified,
+             (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
-           WHERE pl.reference_normalized LIKE ? AND pl.status = 'active'
+           LEFT JOIN listing_alt_references alt ON alt.listing_id = pl.id
+           WHERE (pl.reference_normalized LIKE ? OR alt.reference_normalized LIKE ?) AND pl.status = 'active'
            ORDER BY pl.created_at DESC
            LIMIT 50`
         )
-        .bind(`%${refNormalized}%`)
+        .bind(`%${refNormalized}%`, `%${refNormalized}%`)
         .all();
 
       return json({ results: rows.results || [] });
@@ -510,8 +562,9 @@ export default {
 
       const rows = await env.DB
         .prepare(
-          `SELECT id, reference, description, quantity, brand, notes, status, created_at
-           FROM parts_listings WHERE dealer_id = ? ORDER BY created_at DESC`
+          `SELECT pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.status, pl.created_at,
+                  (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
+           FROM parts_listings pl WHERE pl.dealer_id = ? ORDER BY pl.created_at DESC`
         )
         .bind(dealerIdOrResponse)
         .all();
