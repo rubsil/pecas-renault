@@ -123,13 +123,31 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
       na D1 — cria a tabela `settings` usada pela password de registo e
       pelo painel de administrador. Sem isto, o separador
       "Configurações" do painel não funciona.
-- [ ] **Definir o secret `ADMIN_PASSWORD`** no Worker, para poderes
-      entrar no painel de administrador (`docs/admin.html`). No
-      dashboard Cloudflare: Workers & Pages → `pecas-renault` →
-      Settings → Variables and Secrets → Add → tipo "Secret", nome
-      `ADMIN_PASSWORD`, valor à tua escolha. **Sem este secret
-      definido, o painel de administrador fica sempre bloqueado** —
-      é o comportamento seguro por omissão.
+- [x] **Definir o secret `ADMIN_PASSWORD`** no Worker, para poderes
+      entrar no painel de administrador (`docs/admin.html`). **Usa
+      `wrangler secret put ADMIN_PASSWORD`** (a partir da pasta
+      `worker/`), não o dashboard Cloudflare — ver aviso importante
+      abaixo. Sem este secret definido, o painel de administrador
+      fica sempre bloqueado, que é o comportamento seguro por omissão.
+
+  > **Aviso — não uses o dashboard para secrets deste projeto.**
+  > Definir o `ADMIN_PASSWORD` em Workers & Pages → Settings →
+  > Variables and Secrets pareceu funcionar mas foi apagado
+  > silenciosamente no deploy seguinte feito pelo Workers Builds
+  > (bug conhecido da integração Git da Cloudflare — o CI limpa
+  > secrets definidos manualmente a cada novo push). O sintoma foi
+  > "password inválida" mesmo com o valor certo, sem erro nenhum
+  > a apontar para a causa real.
+  >
+  > A forma correta e estável é sempre por linha de comandos:
+  > ```
+  > cd worker
+  > wrangler secret put ADMIN_PASSWORD
+  > ```
+  > Isto grava o secret diretamente na versão publicada do Worker,
+  > sem depender do processo de build do GitHub — sobrevive a
+  > pushes seguintes sem se perder.
+
 - [ ] Ligar o envio do código de confirmação a um serviço real de email
       (ver `NOTA DE IMPLEMENTAÇÃO` em `worker/src/index.ts`). Sem isto,
       o código aparece só na resposta da API (`devCode`) — bom para
