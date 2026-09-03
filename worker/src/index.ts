@@ -324,6 +324,25 @@ export default {
         return json({ message: "Quantidade atualizada.", quantity: newQuantity, status: newStatus });
       }
 
+      // Editar descrição e/ou notas (ex: corrigir erro de escrita,
+      // acrescentar "já reservada para cliente X"). Só atualiza os
+      // campos que vierem no pedido — não sobrescreve o outro com null.
+      if (typeof body?.description === "string" || typeof body?.notes === "string") {
+        const current = await env.DB
+          .prepare("SELECT description, notes FROM parts_listings WHERE id = ?")
+          .bind(listingId)
+          .first<{ description: string | null; notes: string | null }>();
+
+        const newDescription = typeof body.description === "string" ? body.description : current?.description ?? null;
+        const newNotes = typeof body.notes === "string" ? body.notes : current?.notes ?? null;
+
+        await env.DB
+          .prepare("UPDATE parts_listings SET description = ?, notes = ?, updated_at = datetime('now') WHERE id = ?")
+          .bind(newDescription, newNotes, listingId)
+          .run();
+        return json({ message: "Descrição e notas atualizadas." });
+      }
+
       // Ou atualizar o estado diretamente (ex: marcar vendida sem
       // mexer na quantidade, ou reativar um anúncio).
       const status = body?.status;

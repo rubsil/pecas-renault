@@ -107,12 +107,14 @@
   .verify-status.pending { background: #f5ead6; color: #8a5a1f; }
 
   .listing-row {
-    display: flex; align-items: center; justify-content: space-between;
     padding: 0.7rem 0; border-bottom: 1px solid var(--line);
     font-size: 0.9rem;
   }
+  .listing-main { display: flex; flex-direction: column; gap: 0.5rem; }
+  .listing-top { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
   .listing-ref { font-family: var(--mono); font-weight: 700; }
   .listing-meta { color: var(--ink-faint); font-size: 0.8rem; }
+  .listing-notes { color: var(--ink-faint); font-size: 0.78rem; font-style: italic; margin-top: 0.15rem; }
 
   .listing-controls { display: flex; align-items: center; gap: 0.4rem; }
   .qty-btn {
@@ -123,12 +125,37 @@
   .qty-btn:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); }
   .qty-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .qty-value { font-family: var(--mono); font-weight: 700; min-width: 1.4rem; text-align: center; }
+  .edit-btn {
+    width: 1.8rem; height: 1.8rem; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--paper-raised); color: var(--ink-soft); cursor: pointer; margin-left: 0.4rem;
+    font-size: 0.95rem; display: flex; align-items: center; justify-content: center;
+  }
+  .edit-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
   .delete-btn {
     width: 1.8rem; height: 1.8rem; border: 1px solid var(--line); border-radius: var(--radius);
     background: var(--paper-raised); color: var(--danger); cursor: pointer; margin-left: 0.4rem;
     font-size: 0.95rem; display: flex; align-items: center; justify-content: center;
   }
   .delete-btn:hover { background: var(--danger-soft); border-color: var(--danger); }
+
+  .listing-edit-form {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    padding: 0.75rem; background: var(--paper); border-radius: var(--radius);
+    border: 1px solid var(--line);
+  }
+  .listing-edit-form input, .listing-edit-form textarea {
+    padding: 0.5rem 0.6rem; font-size: 0.85rem; border: 1px solid var(--line);
+    border-radius: var(--radius); font-family: var(--sans); background: var(--paper-raised); color: var(--ink);
+  }
+  .listing-edit-actions { display: flex; gap: 0.5rem; }
+  .edit-save-btn, .edit-cancel-btn {
+    padding: 0.4rem 0.9rem; font-size: 0.82rem; font-weight: 600; border-radius: var(--radius);
+    cursor: pointer; border: 1px solid var(--ink);
+  }
+  .edit-save-btn { background: var(--ink); color: var(--paper); }
+  .edit-save-btn:hover { background: var(--accent); border-color: var(--accent); }
+  .edit-cancel-btn { background: var(--paper-raised); color: var(--ink-soft); border-color: var(--line); }
+  .edit-cancel-btn:hover { background: var(--paper); }
 
   .autocomplete-wrap { position: relative; }
   .autocomplete-list {
@@ -576,19 +603,34 @@ function renderMyListings(listings, token) {
   for (const l of active) {
     const row = document.createElement("div");
     row.className = "listing-row";
+    row.dataset.listingId = l.id;
 
     const statusLabel = { active: "disponível", reserved: "reservada", sold: "vendida" }[l.status] || l.status;
 
     row.innerHTML = `
-      <div>
-        <div class="listing-ref">${escapeHtmlLocal(l.reference)}</div>
-        <div class="listing-meta">${statusLabel}${l.description ? " · " + escapeHtmlLocal(l.description) : ""}</div>
-      </div>
-      <div class="listing-controls">
-        <button class="qty-btn" data-action="dec" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>−</button>
-        <span class="qty-value">${l.quantity}</span>
-        <button class="qty-btn" data-action="inc" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>+</button>
-        <button class="delete-btn" data-action="delete" data-id="${l.id}" title="Eliminar">✕</button>
+      <div class="listing-main">
+        <div class="listing-top">
+          <div>
+            <div class="listing-ref">${escapeHtmlLocal(l.reference)}</div>
+            <div class="listing-meta">${statusLabel}${l.description ? " · " + escapeHtmlLocal(l.description) : ""}</div>
+            ${l.notes ? `<div class="listing-notes">${escapeHtmlLocal(l.notes)}</div>` : ""}
+          </div>
+          <div class="listing-controls">
+            <button class="qty-btn" data-action="dec" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>−</button>
+            <span class="qty-value">${l.quantity}</span>
+            <button class="qty-btn" data-action="inc" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>+</button>
+            <button class="edit-btn" data-action="edit" data-id="${l.id}" title="Editar descrição/notas">✎</button>
+            <button class="delete-btn" data-action="delete" data-id="${l.id}" title="Eliminar">✕</button>
+          </div>
+        </div>
+        <div class="listing-edit-form" id="edit-form-${l.id}" style="display: none;">
+          <input type="text" class="edit-description" placeholder="Descrição" value="${escapeAttrLocal(l.description || "")}" />
+          <textarea class="edit-notes" rows="2" placeholder="Notas (ex: embalagem selada)">${escapeHtmlLocal(l.notes || "")}</textarea>
+          <div class="listing-edit-actions">
+            <button class="edit-save-btn" data-id="${l.id}">Guardar</button>
+            <button class="edit-cancel-btn" data-id="${l.id}">Cancelar</button>
+          </div>
+        </div>
       </div>
     `;
     container.appendChild(row);
@@ -597,6 +639,32 @@ function renderMyListings(listings, token) {
   container.querySelectorAll("button[data-action]").forEach(btn => {
     btn.addEventListener("click", () => handleListingAction(btn.dataset.action, Number(btn.dataset.id), token));
   });
+
+  container.querySelectorAll(".edit-save-btn").forEach(btn => {
+    btn.addEventListener("click", () => saveListingEdit(Number(btn.dataset.id), token));
+  });
+
+  container.querySelectorAll(".edit-cancel-btn").forEach(btn => {
+    btn.addEventListener("click", () => toggleEditForm(Number(btn.dataset.id), false));
+  });
+}
+
+function toggleEditForm(listingId, show) {
+  const form = document.getElementById(`edit-form-${listingId}`);
+  if (form) form.style.display = show ? "" : "none";
+}
+
+async function saveListingEdit(listingId, token) {
+  const form = document.getElementById(`edit-form-${listingId}`);
+  const description = form.querySelector(".edit-description").value.trim();
+  const notes = form.querySelector(".edit-notes").value.trim();
+
+  await fetch(`${API_BASE}/api/listings/${listingId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ description, notes }),
+  });
+  loadDashboard();
 }
 
 async function handleListingAction(action, listingId, token) {
@@ -610,9 +678,14 @@ async function handleListingAction(action, listingId, token) {
     return;
   }
 
+  if (action === "edit") {
+    toggleEditForm(listingId, true);
+    return;
+  }
+
   // dec/inc: lê a quantidade atual a partir do DOM em vez de guardar
   // estado à parte — mais simples, e o dashboard é pequeno.
-  const row = document.querySelector(`button[data-id="${listingId}"]`).closest(".listing-row");
+  const row = document.querySelector(`.listing-row[data-listing-id="${listingId}"]`);
   const currentQty = Number(row.querySelector(".qty-value").textContent);
   const newQty = action === "dec" ? currentQty - 1 : currentQty + 1;
   if (newQty < 0) return;
@@ -623,6 +696,14 @@ async function handleListingAction(action, listingId, token) {
     body: JSON.stringify({ quantity: newQty }),
   });
   loadDashboard();
+}
+
+function escapeAttrLocal(str) {
+  return (str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function escapeHtmlLocal(str) {
