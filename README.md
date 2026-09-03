@@ -133,6 +133,9 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
       na D1 — adiciona a coluna `verified_at`, usada pelo painel de
       admin para mostrar a data de verificação de cada concessionário.
       Sem isto, essa coluna aparece sempre vazia.
+- [ ] **Aplicar a migração `worker/migrations/0005_admin_activity_log.sql`**
+      na D1 — cria a tabela `admin_activity_log`, usada pelo separador
+      "Log" do painel. Sem isto, esse separador falha ao carregar.
 - [x] **Definir o secret `ADMIN_PASSWORD`** no Worker, para poderes
       entrar no painel de administrador (`docs/admin.html`). **Usa
       `wrangler secret put ADMIN_PASSWORD`** (a partir da pasta
@@ -183,17 +186,27 @@ só quem souber o URL (e a password) consegue entrar.
   já verificada e com email confirmado (sem código nenhum, com
   autofill do nome a partir da lista oficial) — para quem pediu para
   ser registado diretamente, sem passar pelo fluxo normal.
-- **Cobertura**: os 97 concessionários da Renault, cruzados com o
+- **Todos os Concessionários**: os 97 concessionários da Renault, cruzados com o
   estado de registo na plataforma — quem já está registado (e se está
   verificado) e quem ainda não apareceu. Filtro rápido para veres só
   quem falta registar, útil para saberes a quem vale a pena voltar a
-  lembrar sobre a plataforma.
+  lembrar sobre a plataforma. Totalmente editável (nome, cidade,
+  telefone, código postal) e dá para adicionar ou remover lojas —
+  útil quando a Renault abre/fecha um concessionário e a lista precisa
+  de correção sem mexer em SQL.
 - **Peças**: editar referência/descrição/quantidade/estado, eliminar
   qualquer peça de qualquer concessionário, filtrar por concessionário,
   ver data de publicação/última atualização.
-- **Configurações**: definir ou remover a password de registo. Se
+- **Alertas**: concessionários que pediram para ser avisados quando
+  alguém publicar uma referência que ainda não existe. Dá para veres
+  todos os pedidos pendentes e eliminares os que já não fazem sentido.
+- **Log**: as últimas 200 ações feitas no painel (criar, verificar,
+  editar, eliminar), com data e detalhe — rasto de auditoria simples,
+  não regista leituras, só escritas.
+- **Configurações**: definir ou remover a password de registo (se
   definida, o registo passa a exigir esse código; se vazia, qualquer
-  concessionário da lista oficial pode registar-se livremente.
+  concessionário da lista oficial pode registar-se livremente), e
+  exportar concessionários/peças em CSV para abrir no Excel.
 
 A autenticação é uma password única (`ADMIN_PASSWORD`, ver acima),
 sem sessões — cada ação no painel envia a password num header. É

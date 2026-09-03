@@ -95,6 +95,7 @@
   .btn-mini.resend:hover { background: var(--warn-soft); }
 
   .dates-cell { font-size: 0.75rem; color: var(--ink-faint); white-space: nowrap; }
+  .mono-cell { font-family: var(--mono); font-weight: 700; }
   .badge-note { font-size: 0.7rem; color: var(--warn); margin-top: 0.2rem; }
 
   .settings-box {
@@ -194,8 +195,10 @@
 
     <div class="tabs">
       <div class="tab active" data-tab="dealers">Concessionários</div>
-      <div class="tab" data-tab="official">Cobertura</div>
+      <div class="tab" data-tab="official">Todos os Concessionários</div>
       <div class="tab" data-tab="listings">Peças</div>
+      <div class="tab" data-tab="alerts">Alertas</div>
+      <div class="tab" data-tab="log">Log</div>
       <div class="tab" data-tab="settings">Configurações</div>
     </div>
 
@@ -244,6 +247,37 @@
     </div>
 
     <div class="panel" id="panel-official">
+      <button class="btn-toggle-form" id="btn-toggle-new-official">+ Adicionar loja à lista oficial</button>
+
+      <div class="new-dealer-form" id="new-official-form" style="display: none;">
+        <div class="hint" style="margin-bottom: 0.75rem;">
+          Usa se a Renault abrir um concessionário novo que ainda não está
+          nesta lista, ou se faltou algum na importação original.
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Nome da empresa</label>
+            <input type="text" id="no-company" placeholder="Auto Exemplo, Lda" />
+          </div>
+          <div>
+            <label>Cidade</label>
+            <input type="text" id="no-city" placeholder="opcional" />
+          </div>
+          <div>
+            <label>Telefone</label>
+            <input type="tel" id="no-phone" placeholder="opcional" />
+          </div>
+          <div>
+            <label>Código postal</label>
+            <input type="text" id="no-postal" placeholder="opcional" />
+          </div>
+        </div>
+        <div class="listing-edit-actions" style="margin-top: 0.75rem;">
+          <button class="edit-save-btn" id="btn-create-official">Adicionar</button>
+          <button class="edit-cancel-btn" id="btn-cancel-new-official">Cancelar</button>
+        </div>
+      </div>
+
       <div class="listings-filter">
         <label for="official-filter">Mostrar:</label>
         <select id="official-filter">
@@ -268,6 +302,21 @@
       <div id="listings-area"><div class="status-line">A carregar…</div></div>
     </div>
 
+    <div class="panel" id="panel-alerts">
+      <div class="hint" style="margin-bottom: 1rem;">
+        Concessionários que pediram para ser avisados quando alguém publicar uma
+        referência específica que ainda não existe na plataforma.
+      </div>
+      <div id="alerts-area"><div class="status-line">A carregar…</div></div>
+    </div>
+
+    <div class="panel" id="panel-log">
+      <div class="hint" style="margin-bottom: 1rem;">
+        Últimas 200 ações feitas neste painel (criar, verificar, editar, eliminar).
+      </div>
+      <div id="log-area"><div class="status-line">A carregar…</div></div>
+    </div>
+
     <div class="panel" id="panel-settings">
       <div class="settings-box">
         <label for="reg-password-input">Password de registo</label>
@@ -278,6 +327,15 @@
           concessionário da lista oficial se poder registar livremente.
         </div>
         <button id="btn-save-reg-password">Guardar</button>
+      </div>
+
+      <div class="settings-box" style="margin-top: 1.5rem;">
+        <label>Exportar dados</label>
+        <div class="hint">Descarrega ficheiros CSV, prontos para abrir no Excel.</div>
+        <div style="display: flex; gap: 0.6rem; margin-top: 0.5rem;">
+          <button id="btn-export-dealers">Concessionários (.csv)</button>
+          <button id="btn-export-listings">Peças (.csv)</button>
+        </div>
       </div>
     </div>
   </div>
@@ -367,6 +425,8 @@ document.querySelectorAll(".tab").forEach(tab => {
     document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
     if (tab.dataset.tab === "official") loadOfficialDealers();
     if (tab.dataset.tab === "listings") loadListings();
+    if (tab.dataset.tab === "alerts") loadAlerts();
+    if (tab.dataset.tab === "log") loadActivityLog();
     if (tab.dataset.tab === "settings") loadSettings();
   });
 });
@@ -626,6 +686,43 @@ async function resendConfirmation(id) {
 }
 
 // ---------- lista oficial ----------
+document.getElementById("btn-toggle-new-official").addEventListener("click", () => {
+  const form = document.getElementById("new-official-form");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+
+document.getElementById("btn-cancel-new-official").addEventListener("click", () => {
+  document.getElementById("new-official-form").style.display = "none";
+});
+
+document.getElementById("btn-create-official").addEventListener("click", async () => {
+  const companyName = document.getElementById("no-company").value.trim();
+  const city = document.getElementById("no-city").value.trim();
+  const phone = document.getElementById("no-phone").value.trim();
+  const postalCode = document.getElementById("no-postal").value.trim();
+
+  if (!companyName) {
+    showToast("Nome da empresa é obrigatório.");
+    return;
+  }
+
+  const res = await adminFetch("/api/admin/official-dealers", {
+    method: "POST",
+    body: JSON.stringify({ companyName, city, phone, postalCode }),
+  });
+  const data = await res.json();
+
+  if (!res.ok) {
+    showToast(data.error || "Não foi possível adicionar.");
+    return;
+  }
+
+  showToast(data.message);
+  document.getElementById("new-official-form").style.display = "none";
+  ["no-company", "no-city", "no-phone", "no-postal"].forEach(id => { document.getElementById(id).value = ""; });
+  loadOfficialDealers();
+});
+
 let officialDealersCache = [];
 
 async function loadOfficialDealers() {
@@ -669,12 +766,19 @@ function renderOfficialDealers(list) {
     else badge = '<span class="badge pending">pendente</span>';
 
     return `
-      <tr>
-        <td>${escapeAttr(o.company_name)}</td>
-        <td>${escapeAttr(o.city || "")}</td>
-        <td>${escapeAttr(o.phone || "")}</td>
+      <tr data-official-id="${o.id}">
+        <td><input class="editable" data-field="companyName" value="${escapeAttr(o.company_name)}" /></td>
+        <td><input class="editable" data-field="city" value="${escapeAttr(o.city || "")}" /></td>
+        <td><input class="editable" data-field="phone" value="${escapeAttr(o.phone || "")}" /></td>
+        <td><input class="editable" data-field="postalCode" value="${escapeAttr(o.postal_code || "")}" style="width: 5.5rem;" /></td>
         <td>${badge}</td>
         <td>${o.email ? escapeAttr(o.email) : "—"}</td>
+        <td>
+          <div class="row-actions">
+            <button class="btn-mini save" data-action="save-official" data-id="${o.id}">Guardar</button>
+            <button class="btn-mini delete" data-action="delete-official" data-id="${o.id}">Eliminar</button>
+          </div>
+        </td>
       </tr>
     `;
   }).join("");
@@ -683,11 +787,35 @@ function renderOfficialDealers(list) {
     <div class="hint" style="margin-bottom: 0.75rem;">A mostrar ${list.length} de ${officialDealersCache.length} concessionários oficiais.</div>
     <table>
       <thead>
-        <tr><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>Estado</th><th>Email (se registado)</th></tr>
+        <tr><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>C. Postal</th><th>Estado</th><th>Email (se registado)</th><th></th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
   `;
+
+  area.querySelectorAll('[data-action="save-official"]').forEach(btn => {
+    btn.addEventListener("click", () => saveOfficialDealer(Number(btn.dataset.id)));
+  });
+  area.querySelectorAll('[data-action="delete-official"]').forEach(btn => {
+    btn.addEventListener("click", () => deleteOfficialDealer(Number(btn.dataset.id)));
+  });
+}
+
+async function saveOfficialDealer(id) {
+  const row = document.querySelector(`tr[data-official-id="${id}"]`);
+  const body = {};
+  row.querySelectorAll("[data-field]").forEach(input => { body[input.dataset.field] = input.value; });
+
+  await adminFetch(`/api/admin/official-dealers/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+  showToast("Loja atualizada.");
+  loadOfficialDealers();
+}
+
+async function deleteOfficialDealer(id) {
+  if (!confirm("Remover esta loja da lista oficial? Se houver uma conta ligada a ela, fica sem ligação (não é eliminada).")) return;
+  await adminFetch(`/api/admin/official-dealers/${id}`, { method: "DELETE" });
+  showToast("Loja removida da lista oficial.");
+  loadOfficialDealers();
 }
 
 // ---------- peças ----------
@@ -850,6 +978,138 @@ async function deleteListing(id) {
   showToast("Peça eliminada.");
   loadListings();
 }
+
+// ---------- alertas de referência ----------
+async function loadAlerts() {
+  const area = document.getElementById("alerts-area");
+  area.innerHTML = '<div class="status-line">A carregar…</div>';
+
+  try {
+    const res = await adminFetch("/api/admin/alerts");
+    const data = await res.json();
+    renderAlerts(data.results || []);
+  } catch (err) {
+    area.innerHTML = '<div class="status-line">Erro ao carregar.</div>';
+  }
+}
+
+function renderAlerts(alerts) {
+  const area = document.getElementById("alerts-area");
+  if (alerts.length === 0) {
+    area.innerHTML = '<div class="status-line">Nenhum alerta pendente.</div>';
+    return;
+  }
+
+  const rows = alerts.map(a => `
+    <tr>
+      <td class="mono-cell">${escapeAttr(a.reference_normalized)}</td>
+      <td>${escapeAttr(a.company_name)}</td>
+      <td class="dates-cell">${formatDate(a.created_at)}</td>
+      <td>${a.notified_at ? '<span class="badge ok">notificado</span>' : '<span class="badge pending">à espera</span>'}</td>
+      <td><button class="btn-mini delete" data-action="delete-alert" data-id="${a.id}">Eliminar</button></td>
+    </tr>
+  `).join("");
+
+  area.innerHTML = `
+    <table>
+      <thead><tr><th>Referência</th><th>Pedido por</th><th>Data</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  area.querySelectorAll('[data-action="delete-alert"]').forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await adminFetch(`/api/admin/alerts/${btn.dataset.id}`, { method: "DELETE" });
+      showToast("Alerta eliminado.");
+      loadAlerts();
+    });
+  });
+}
+
+// ---------- log de atividade ----------
+const ACTION_LABELS = {
+  dealer_created_manually: "Concessionário criado manualmente",
+  dealer_verified: "Concessionário verificado",
+  dealer_updated: "Concessionário editado",
+  dealer_deleted: "Concessionário eliminado",
+  listing_deleted: "Peça eliminada",
+  official_dealer_created: "Loja adicionada à lista oficial",
+  official_dealer_updated: "Loja da lista oficial editada",
+  official_dealer_deleted: "Loja removida da lista oficial",
+};
+
+async function loadActivityLog() {
+  const area = document.getElementById("log-area");
+  area.innerHTML = '<div class="status-line">A carregar…</div>';
+
+  try {
+    const res = await adminFetch("/api/admin/activity-log");
+    const data = await res.json();
+    renderActivityLog(data.results || []);
+  } catch (err) {
+    area.innerHTML = '<div class="status-line">Erro ao carregar.</div>';
+  }
+}
+
+function renderActivityLog(entries) {
+  const area = document.getElementById("log-area");
+  if (entries.length === 0) {
+    area.innerHTML = '<div class="status-line">Ainda não há nenhuma ação registada.</div>';
+    return;
+  }
+
+  const rows = entries.map(e => `
+    <tr>
+      <td>${escapeAttr(ACTION_LABELS[e.action] || e.action)}</td>
+      <td>${escapeAttr(e.detail || "—")}</td>
+      <td class="dates-cell">${formatDateTime(e.created_at)}</td>
+    </tr>
+  `).join("");
+
+  area.innerHTML = `
+    <table>
+      <thead><tr><th>Ação</th><th>Detalhe</th><th>Quando</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function formatDateTime(iso) {
+  if (!iso) return "—";
+  const normalized = iso.includes("T") ? iso : iso.replace(" ", "T") + "Z";
+  const d = new Date(normalized);
+  if (isNaN(d)) return "—";
+  return d.toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// ---------- exportar CSV ----------
+async function downloadCsv(path, filename) {
+  try {
+    const res = await adminFetch(path);
+    if (!res.ok) {
+      showToast("Não foi possível exportar.");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    showToast("Erro ao exportar: " + err.message);
+  }
+}
+
+document.getElementById("btn-export-dealers").addEventListener("click", () => {
+  downloadCsv("/api/admin/export/dealers.csv", "concessionarios.csv");
+});
+document.getElementById("btn-export-listings").addEventListener("click", () => {
+  downloadCsv("/api/admin/export/listings.csv", "pecas.csv");
+});
 
 // ---------- configurações ----------
 async function loadSettings() {

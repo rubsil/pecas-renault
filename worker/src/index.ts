@@ -20,6 +20,14 @@
 //   Painel de administrador (protegido por header x-admin-password):
 //   GET    /api/admin/stats                 — estatísticas rápidas (contas, verificados, peças)
 //   GET    /api/admin/official-dealers      — lista oficial (97) cruzada com estado de registo
+//   POST   /api/admin/official-dealers      — adiciona loja à lista oficial manualmente
+//   PATCH  /api/admin/official-dealers/:id  — edita uma loja da lista oficial
+//   DELETE /api/admin/official-dealers/:id  — remove uma loja da lista oficial
+//   GET    /api/admin/alerts                — lista todos os alertas de referência
+//   DELETE /api/admin/alerts/:id            — elimina um alerta
+//   GET    /api/admin/activity-log          — histórico de ações do admin
+//   GET    /api/admin/export/dealers.csv    — exporta concessionários em CSV
+//   GET    /api/admin/export/listings.csv   — exporta peças em CSV
 //   GET    /api/admin/dealers               — lista todos os concessionários
 //   POST   /api/admin/dealers               — cria concessionário já verificado (bypass total)
 //   PATCH  /api/admin/dealers/:id           — edita um concessionário (nome, telefone, email, verified)
@@ -76,6 +84,42 @@ function requireAdmin(request: Request, env: Env): Response | null {
   return null;
 }
 
+async function logAdminActivity(
+  db: D1Database,
+  action: string,
+  targetType: string,
+  targetId: string | number | null,
+  detail: string | null
+): Promise<void> {
+  try {
+    await db
+      .prepare("INSERT INTO admin_activity_log (action, target_type, target_id, detail) VALUES (?, ?, ?, ?)")
+      .bind(action, targetType, targetId != null ? String(targetId) : null, detail)
+      .run();
+  } catch {
+    // Nunca deixar uma falha no log impedir a ação principal --
+    // é informação de apoio, não crítica para o funcionamento.
+  }
+}
+
+function csvEscape(value: unknown): string {
+  const str = value == null ? "" : String(value);
+  if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  return str;
+}
+
+function csvResponse(filename: string, header: string[], rows: (string | number | null)[][]): Response {
+  const lines = [header.map(csvEscape).join(",")];
+  for (const row of rows) lines.push(row.map(csvEscape).join(","));
+  const csv = "\uFEFF" + lines.join("\r\n"); // BOM para acentos abrirem bem no Excel
+  return new Response(csv, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="${filename}"`,
+      "access-control-allow-origin": "*",
+    },
+  });
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -560,6 +604,157 @@ export default {
       return json({ results: rows.results || [] });
     }
 
+    // ---------- adicionar loja à lista oficial manualmente ----------
+    // Útil quando a Renault abre um concessionário novo e ainda não
+    // reflete na página pública deles, ou nunca chegou a ser importado.
+    if (path === "/api/admin/official-dealers" && request.method === "POST") {
+      const body = await request.json<any>().catch(() => null);
+      if (!body?.companyName) {
+        return json({ error: "Nome da empresa é obrigatório." }, { status: 400 });
+      }
+
+      const nameNormalized = normalizeText(body.companyName);
+      const phoneNormalized = body.phone ? normalizePhone(body.phone) : null;
+
+      const result = await env.DB
+        .prepare(
+          `INSERT INTO official_dealers
+            (company_name, company_name_normalized, address, postal_code, city, phone, phone_normalized, source_url)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          body.companyName,
+          nameNormalized,
+          body.address || null,
+          body.postalCode || null,
+          body.city || null,
+          body.phone || null,
+          phoneNormalized,
+          "manual_admin"
+        )
+        .run();
+
+      await logAdminActivity(env.DB, "official_dealer_created", "official_dealer", result.meta.last_row_id, body.companyName);
+      return json({ id: result.meta.last_row_id, message: "Loja adicionada à lista oficial." });
+    }
+
+    // ---------- editar/remover uma loja da lista oficial ----------
+    const officialMatch = path.match(/^\/api\/admin\/official-dealers\/(\d+)$/);
+    if (officialMatch && request.method === "PATCH") {
+      const officialId = Number(officialMatch[1]);
+      const body = await request.json<any>().catch(() => null);
+      if (!body) return json({ error: "Corpo do pedido inválido." }, { status: 400 });
+
+      const fields: string[] = [];
+      const values: any[] = [];
+
+      if (typeof body.companyName === "string") {
+        fields.push("company_name = ?", "company_name_normalized = ?");
+        values.push(body.companyName, normalizeText(body.companyName));
+      }
+      if (typeof body.phone === "string") {
+        fields.push("phone = ?", "phone_normalized = ?");
+        values.push(body.phone, normalizePhone(body.phone));
+      }
+      if (typeof body.city === "string") { fields.push("city = ?"); values.push(body.city); }
+      if (typeof body.postalCode === "string") { fields.push("postal_code = ?"); values.push(body.postalCode); }
+      if (typeof body.address === "string") { fields.push("address = ?"); values.push(body.address); }
+
+      if (fields.length === 0) return json({ error: "Nada para atualizar." }, { status: 400 });
+
+      values.push(officialId);
+      await env.DB.prepare(`UPDATE official_dealers SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+      await logAdminActivity(env.DB, "official_dealer_updated", "official_dealer", officialId, JSON.stringify(body));
+      return json({ message: "Loja atualizada." });
+    }
+
+    if (officialMatch && request.method === "DELETE") {
+      const officialId = Number(officialMatch[1]);
+
+      // Não elimina em cascata: se houver uma conta ligada a esta loja,
+      // essa conta fica órfã (official_dealer_id passa a apontar para
+      // algo inexistente é evitado por FK, mas aqui não há FK definida
+      // nessa direção) -- desliga-se a referência antes de remover.
+      await env.DB.prepare("UPDATE dealers SET official_dealer_id = NULL WHERE official_dealer_id = ?").bind(officialId).run();
+      await env.DB.prepare("DELETE FROM official_dealers WHERE id = ?").bind(officialId).run();
+      await logAdminActivity(env.DB, "official_dealer_deleted", "official_dealer", officialId, null);
+      return json({ message: "Loja removida da lista oficial." });
+    }
+
+    // ---------- listar todos os alertas de referência ----------
+    if (path === "/api/admin/alerts" && request.method === "GET") {
+      const rows = await env.DB
+        .prepare(
+          `SELECT ra.id, ra.reference_normalized, ra.created_at, ra.notified_at,
+                  d.id AS dealer_id, d.company_name
+           FROM reference_alerts ra
+           JOIN dealers d ON d.id = ra.dealer_id
+           ORDER BY ra.created_at DESC`
+        )
+        .all();
+      return json({ results: rows.results || [] });
+    }
+
+    // ---------- eliminar um alerta ----------
+    const alertMatch = path.match(/^\/api\/admin\/alerts\/(\d+)$/);
+    if (alertMatch && request.method === "DELETE") {
+      const alertId = Number(alertMatch[1]);
+      await env.DB.prepare("DELETE FROM reference_alerts WHERE id = ?").bind(alertId).run();
+      return json({ message: "Alerta eliminado." });
+    }
+
+    // ---------- histórico de atividade do admin ----------
+    if (path === "/api/admin/activity-log" && request.method === "GET") {
+      const rows = await env.DB
+        .prepare("SELECT id, action, target_type, target_id, detail, created_at FROM admin_activity_log ORDER BY created_at DESC LIMIT 200")
+        .all();
+      return json({ results: rows.results || [] });
+    }
+
+    // ---------- exportar concessionários em CSV ----------
+    if (path === "/api/admin/export/dealers.csv" && request.method === "GET") {
+      const rows = await env.DB
+        .prepare(
+          `SELECT company_name, phone, email, city, postal_code, verified, email_confirmed, created_at, verified_at
+           FROM dealers ORDER BY company_name`
+        )
+        .all<any>();
+
+      const data = (rows.results || []).map((d) => [
+        d.company_name, d.phone, d.email, d.city, d.postal_code,
+        d.verified ? "sim" : "não", d.email_confirmed ? "sim" : "não", d.created_at, d.verified_at,
+      ]);
+
+      return csvResponse(
+        "concessionarios.csv",
+        ["Empresa", "Telefone", "Email", "Cidade", "Código Postal", "Verificado", "Email Confirmado", "Registo", "Verificação"],
+        data
+      );
+    }
+
+    // ---------- exportar peças em CSV ----------
+    if (path === "/api/admin/export/listings.csv" && request.method === "GET") {
+      const rows = await env.DB
+        .prepare(
+          `SELECT pl.reference, pl.description, pl.quantity, pl.status, pl.notes,
+                  d.company_name, pl.created_at
+           FROM parts_listings pl
+           JOIN dealers d ON d.id = pl.dealer_id
+           ORDER BY pl.created_at DESC`
+        )
+        .all<any>();
+
+      const data = (rows.results || []).map((l) => [
+        l.reference, l.description, l.quantity, l.status, l.notes, l.company_name, l.created_at,
+      ]);
+
+      return csvResponse(
+        "pecas.csv",
+        ["Referência", "Descrição", "Quantidade", "Estado", "Notas", "Concessionário", "Publicada em"],
+        data
+      );
+    }
+
     // ---------- listar todos os concessionários ----------
     if (path === "/api/admin/dealers" && request.method === "GET") {
       const rows = await env.DB
@@ -632,6 +827,8 @@ export default {
         throw err;
       }
 
+      await logAdminActivity(env.DB, "dealer_created_manually", "dealer", result.meta.last_row_id, body.companyName);
+
       return json({
         dealerId: result.meta.last_row_id,
         message: verification.officialDealerId
@@ -673,15 +870,27 @@ export default {
 
       values.push(dealerId);
       await env.DB.prepare(`UPDATE dealers SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+
+      if (typeof body.verified === "boolean" && body.verified) {
+        await logAdminActivity(env.DB, "dealer_verified", "dealer", dealerId, body.companyName || null);
+      } else {
+        await logAdminActivity(env.DB, "dealer_updated", "dealer", dealerId, JSON.stringify(body));
+      }
+
       return json({ message: "Concessionário atualizado." });
     }
 
     // ---------- eliminar um concessionário (e as suas peças) ----------
     if (adminDealerMatch && request.method === "DELETE") {
       const dealerId = Number(adminDealerMatch[1]);
+
+      const dealer = await env.DB.prepare("SELECT company_name FROM dealers WHERE id = ?").bind(dealerId).first<{ company_name: string }>();
+
       await env.DB.prepare("DELETE FROM parts_listings WHERE dealer_id = ?").bind(dealerId).run();
       await env.DB.prepare("DELETE FROM reference_alerts WHERE dealer_id = ?").bind(dealerId).run();
       await env.DB.prepare("DELETE FROM dealers WHERE id = ?").bind(dealerId).run();
+
+      await logAdminActivity(env.DB, "dealer_deleted", "dealer", dealerId, dealer?.company_name || null);
       return json({ message: "Concessionário e respetivas peças eliminados." });
     }
 
@@ -754,7 +963,11 @@ export default {
     // ---------- eliminar qualquer peça ----------
     if (adminListingMatch && request.method === "DELETE") {
       const listingId = Number(adminListingMatch[1]);
+      const listing = await env.DB.prepare("SELECT reference FROM parts_listings WHERE id = ?").bind(listingId).first<{ reference: string }>();
+
       await env.DB.prepare("DELETE FROM parts_listings WHERE id = ?").bind(listingId).run();
+
+      await logAdminActivity(env.DB, "listing_deleted", "listing", listingId, listing?.reference || null);
       return json({ message: "Peça eliminada." });
     }
 
