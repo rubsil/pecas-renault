@@ -1,5 +1,5 @@
 -- ============================================================
--- Schema: Peça-Troca — marketplace interno de stock parado
+-- Schema: Rede de Peças Paradas — registo interno de stock parado
 -- entre concessionários/agentes Renault e Dacia
 -- ============================================================
 

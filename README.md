@@ -1,4 +1,4 @@
-# Peça-Troca
+# Rede de Peças Paradas
 
 Marketplace interno para concessionários e agentes Renault/Dacia
 publicarem stock de peças paradas, para que outros concessionários

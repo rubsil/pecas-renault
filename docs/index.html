@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Peça-Troca — stock entre concessionários Renault e Dacia</title>
+<title>Rede de Peças Paradas — stock entre concessionários Renault</title>
 <style>
   :root {
     --ink: #1a1d1a;
@@ -76,6 +76,13 @@
     margin-left: 1.25rem;
   }
   nav a:hover { color: var(--ink); text-decoration: underline; }
+
+  .nav-dealer-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--ink);
+    margin-right: 0.5rem;
+  }
 
   main {
     max-width: 880px;
@@ -280,10 +287,11 @@
 <header>
   <div class="brand">
     <span class="brand-mark">R//D</span>
-    <span class="brand-name">Peça-Troca</span>
+    <span class="brand-name">Peças Paradas</span>
     <span class="brand-sub">rede de concessionários</span>
   </div>
   <nav>
+    <span class="nav-dealer-name" id="nav-dealer-name" style="display: none;"></span>
     <a href="publicar.html">Publicar peça</a>
     <a href="conta.html" id="nav-account-link">A minha conta</a>
     <a href="#" id="nav-session-link" style="display: none;">Terminar sessão</a>
@@ -315,7 +323,7 @@
 </main>
 
 <footer>
-  Peça-Troca é uma plataforma independente, feita por concessionários para concessionários. Sem ligação oficial à Renault ou Dacia.
+  Rede de Peças Paradas é uma plataforma independente, feita por concessionários para concessionários. Sem ligação oficial à Renault ou Dacia.
 </footer>
 
 <script>
@@ -421,6 +429,8 @@ input.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); }
 // ---------- estado de sessão no header ----------
 const accountLink = document.getElementById("nav-account-link");
 const sessionLink = document.getElementById("nav-session-link");
+const dealerNameEl = document.getElementById("nav-dealer-name");
+
 if (sessionToken) {
   accountLink.textContent = "A minha conta";
   sessionLink.style.display = "";
@@ -429,6 +439,17 @@ if (sessionToken) {
     localStorage.removeItem("pt_session");
     location.reload();
   });
+
+  // Mostra o nome do concessionário autenticado, tipo "Auto Exemplo, Lda".
+  fetch(`${API_BASE}/api/dealers/me`, { headers: { authorization: `Bearer ${sessionToken}` } })
+    .then(res => res.ok ? res.json() : null)
+    .then(data => {
+      if (data?.dealer?.company_name) {
+        dealerNameEl.textContent = data.dealer.company_name;
+        dealerNameEl.style.display = "";
+      }
+    })
+    .catch(() => {});
 } else {
   // Deixa explícito que este link também serve para criar conta —
   // sem isto, quem chega pela primeira vez não percebe que há registo.

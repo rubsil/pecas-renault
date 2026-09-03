@@ -1,5 +1,5 @@
 // worker/src/index.ts
-// API principal do Peça-Troca. Cloudflare Worker + D1.
+// API principal da Rede de Peças Paradas. Cloudflare Worker + D1.
 //
 // Rotas:
 //   POST /api/dealers/register        — regista novo concessionário

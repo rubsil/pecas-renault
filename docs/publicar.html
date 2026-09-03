@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Publicar peça — Peça-Troca</title>
+<title>Publicar peça — Rede de Peças Paradas</title>
 <style>
   :root {
     --ink: #1a1d1a; --ink-soft: #4a4e49; --ink-faint: #82867f;
@@ -26,6 +26,7 @@
   .brand-name { font-weight: 700; font-size: 1.15rem; }
   nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.9rem; margin-left: 1.25rem; }
   nav a:hover { color: var(--ink); text-decoration: underline; }
+  .nav-dealer-name { font-weight: 700; font-size: 1rem; color: var(--ink); margin-right: 0.5rem; }
 
   main { max-width: 480px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
 
@@ -79,9 +80,10 @@
 <header>
   <div class="brand">
     <span class="brand-mark">R//D</span>
-    <span class="brand-name">Peça-Troca</span>
+    <span class="brand-name">Peças Paradas</span>
   </div>
   <nav>
+    <span class="nav-dealer-name" id="nav-dealer-name" style="display: none;"></span>
     <a href="index.html">Procurar</a>
     <a href="conta.html" id="nav-account-link">A minha conta</a>
     <a href="#" id="nav-session-link" style="display: none;">Terminar sessão</a>
@@ -122,6 +124,7 @@
 <script>
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 const token = localStorage.getItem("pt_session");
+const dealerNameEl = document.getElementById("nav-dealer-name");
 
 async function init() {
   if (!token) return;
@@ -138,6 +141,11 @@ async function init() {
 
     if (!data.dealer.verified) {
       document.getElementById("verify-notice").classList.add("show");
+    }
+
+    if (data.dealer.company_name) {
+      dealerNameEl.textContent = data.dealer.company_name;
+      dealerNameEl.style.display = "";
     }
   } catch (err) {
     // mantém o aviso de "precisas de conta"
@@ -187,6 +195,7 @@ function showMessage(el, text, type) {
 // ---------- estado de sessão no header ----------
 const accountLink = document.getElementById("nav-account-link");
 const sessionLink = document.getElementById("nav-session-link");
+
 if (token) {
   accountLink.textContent = "A minha conta";
   sessionLink.style.display = "";
