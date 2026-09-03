@@ -207,17 +207,33 @@
   .result-dealer {
     grid-column: 1 / -1;
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem 1rem;
+    flex-direction: column;
+    gap: 0.35rem;
     font-size: 0.85rem;
     color: var(--ink-soft);
     border-top: 1px dashed var(--line);
     padding-top: 0.6rem;
     margin-top: 0.2rem;
-    align-items: center;
   }
 
-  .result-dealer strong { color: var(--ink); }
+  .result-dealer-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .result-dealer-name strong {
+    color: var(--ink);
+    font-size: 0.95rem;
+  }
+
+  .result-dealer-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+    align-items: center;
+  }
 
   .badge-verified {
     font-size: 0.72rem;
@@ -384,11 +400,15 @@ function renderResults(results, emptyMessage) {
       ${r.alt_references ? `<div class="result-alt-refs">Substitui: ${escapeHtml(r.alt_references)}</div>` : ""}
       ${r.notes ? `<div class="result-notes">${escapeHtml(r.notes)}</div>` : ""}
       <div class="result-dealer">
-        <strong>${escapeHtml(r.company_name)}</strong>
-        ${badge}
-        <span>${escapeHtml(r.city || "")}</span>
-        ${r.phone ? `<a href="tel:${phoneDigits}">${escapeHtml(r.phone)}</a>` : ""}
-        ${sessionToken && r.email ? `<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>` : ""}
+        <div class="result-dealer-name">
+          <strong>${escapeHtml(r.company_name)}</strong>
+          ${badge}
+        </div>
+        <div class="result-dealer-meta">
+          <span>${escapeHtml(r.city || "")}</span>
+          ${r.phone ? `<a href="tel:${phoneDigits}">${escapeHtml(r.phone)}</a>` : ""}
+          ${sessionToken && r.email ? `<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>` : ""}
+        </div>
       </div>
     `;
     list.appendChild(card);

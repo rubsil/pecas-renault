@@ -80,6 +80,7 @@
   tr:hover td { background: var(--accent-soft); }
 
   .editable { border: 1px solid transparent; background: transparent; font-family: inherit; font-size: inherit; width: 100%; padding: 0.2rem; border-radius: 3px; }
+  .editable.company-name-field { min-width: 260px; }
   .editable:hover { border-color: var(--line); }
   .editable:focus { border-color: var(--accent); outline: none; background: var(--paper-raised); }
 
@@ -768,7 +769,7 @@ function renderDealers(dealers) {
 
   const rows = sorted.map(d => `
     <tr data-id="${d.id}">
-      <td><input class="editable" data-field="companyName" value="${escapeAttr(d.company_name)}" /></td>
+      <td><input class="editable company-name-field" data-field="companyName" value="${escapeAttr(d.company_name)}" /></td>
       <td><input class="editable" data-field="phone" value="${escapeAttr(d.phone)}" /></td>
       <td><input class="editable" data-field="email" value="${escapeAttr(d.email)}" /></td>
       <td><input class="editable" data-field="city" value="${escapeAttr(d.city || "")}" /></td>
@@ -945,7 +946,7 @@ function renderOfficialDealers(list) {
 
     return `
       <tr data-official-id="${o.id}">
-        <td><input class="editable" data-field="companyName" value="${escapeAttr(o.company_name)}" /></td>
+        <td><input class="editable company-name-field" data-field="companyName" value="${escapeAttr(o.company_name)}" /></td>
         <td><input class="editable" data-field="city" value="${escapeAttr(o.city || "")}" /></td>
         <td><input class="editable" data-field="phone" value="${escapeAttr(o.phone || "")}" /></td>
         <td><input class="editable" data-field="postalCode" value="${escapeAttr(o.postal_code || "")}" style="width: 5.5rem;" /></td>
