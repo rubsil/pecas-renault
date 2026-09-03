@@ -183,7 +183,7 @@ só quem souber o URL (e a password) consegue entrar.
   já verificada e com email confirmado (sem código nenhum, com
   autofill do nome a partir da lista oficial) — para quem pediu para
   ser registado diretamente, sem passar pelo fluxo normal.
-- **Lista Oficial**: os 97 concessionários da Renault, cruzados com o
+- **Cobertura**: os 97 concessionários da Renault, cruzados com o
   estado de registo na plataforma — quem já está registado (e se está
   verificado) e quem ainda não apareceu. Filtro rápido para veres só
   quem falta registar, útil para saberes a quem vale a pena voltar a
