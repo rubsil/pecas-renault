@@ -181,7 +181,7 @@ só quem souber o URL (e a password) consegue entrar.
   verificados, pendentes, peças ativas, publicadas nos últimos 7 dias.
   As tabs "Concessionários" e "Alertas" mostram um badge numérico
   quando há pendências, visível mesmo sem abrir esse separador.
-- **Concessionários**: editar nome/telefone/email/cidade, marcar como
+- **Contas**: editar nome/telefone/email/cidade, marcar como
   verificado manualmente, eliminar conta (e as suas peças — o aviso de
   confirmação diz quantas peças ativas tem, para não eliminares sem
   perceber o impacto), ver data de registo e de verificação, reenviar
@@ -189,7 +189,7 @@ só quem souber o URL (e a password) consegue entrar.
   conta manualmente já verificada e com email confirmado (sem código
   nenhum, com autofill do nome a partir da lista oficial). Tabela
   ordenável por qualquer coluna (clicar no cabeçalho).
-- **Todos os Concessionários**: os 97 concessionários da Renault, cruzados com o
+- **Concessionários**: os 97 concessionários da Renault, cruzados com o
   estado de registo na plataforma — quem já está registado (e se está
   verificado) e quem ainda não apareceu. Filtro rápido para veres só
   quem falta registar, útil para saberes a quem vale a pena voltar a

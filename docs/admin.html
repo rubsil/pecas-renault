@@ -201,8 +201,8 @@
     <div class="stats-bar" id="stats-bar"></div>
 
     <div class="tabs">
-      <div class="tab active" data-tab="dealers">Concessionários <span class="tab-badge" id="tab-badge-pending" style="display: none;"></span></div>
-      <div class="tab" data-tab="official">Todos os Concessionários</div>
+      <div class="tab active" data-tab="dealers">Contas <span class="tab-badge" id="tab-badge-pending" style="display: none;"></span></div>
+      <div class="tab" data-tab="official">Concessionários</div>
       <div class="tab" data-tab="listings">Peças</div>
       <div class="tab" data-tab="alerts">Alertas <span class="tab-badge" id="tab-badge-alerts" style="display: none;"></span></div>
       <div class="tab" data-tab="log">Log</div>
@@ -210,7 +210,7 @@
     </div>
 
     <div class="panel active" id="panel-dealers">
-      <button class="btn-toggle-form" id="btn-toggle-new-dealer">+ Criar concessionário manualmente</button>
+      <button class="btn-toggle-form" id="btn-toggle-new-dealer">+ Criar conta manualmente</button>
 
       <div class="new-dealer-form" id="new-dealer-form" style="display: none;">
         <div class="hint" style="margin-bottom: 0.75rem;">
@@ -254,7 +254,7 @@
     </div>
 
     <div class="panel" id="panel-official">
-      <button class="btn-toggle-form" id="btn-toggle-new-official">+ Adicionar loja à lista oficial</button>
+      <button class="btn-toggle-form" id="btn-toggle-new-official">+ Adicionar concessionário à lista</button>
 
       <div class="new-dealer-form" id="new-official-form" style="display: none;">
         <div class="hint" style="margin-bottom: 0.75rem;">
@@ -664,7 +664,7 @@ function sortArrow(tableKey, field) {
 function renderDealers(dealers) {
   const area = document.getElementById("dealers-area");
   if (dealers.length === 0) {
-    area.innerHTML = '<div class="status-line">Nenhum concessionário registado ainda.</div>';
+    area.innerHTML = '<div class="status-line">Nenhuma conta registada ainda.</div>';
     return;
   }
 
@@ -737,13 +737,13 @@ async function saveDealer(id) {
   row.querySelectorAll("[data-field]").forEach(input => { body[input.dataset.field] = input.value; });
 
   await adminFetch(`/api/admin/dealers/${id}`, { method: "PATCH", body: JSON.stringify(body) });
-  showToast("Concessionário atualizado.");
+  showToast("Conta atualizada.");
   loadDealers();
 }
 
 async function verifyDealer(id) {
   await adminFetch(`/api/admin/dealers/${id}`, { method: "PATCH", body: JSON.stringify({ verified: true }) });
-  showToast("Concessionário verificado.");
+  showToast("Conta verificada.");
   loadDealers();
 }
 
@@ -753,7 +753,7 @@ async function deleteDealer(id, companyName, activeListingsCount) {
     : "";
   if (!confirm(`Eliminar "${companyName}"?${extra}`)) return;
   await adminFetch(`/api/admin/dealers/${id}`, { method: "DELETE" });
-  showToast("Concessionário eliminado.");
+  showToast("Conta eliminada.");
   loadDealers();
 }
 
@@ -889,14 +889,14 @@ async function saveOfficialDealer(id) {
   row.querySelectorAll("[data-field]").forEach(input => { body[input.dataset.field] = input.value; });
 
   await adminFetch(`/api/admin/official-dealers/${id}`, { method: "PATCH", body: JSON.stringify(body) });
-  showToast("Loja atualizada.");
+  showToast("Concessionário atualizado.");
   loadOfficialDealers();
 }
 
 async function deleteOfficialDealer(id) {
-  if (!confirm("Remover esta loja da lista oficial? Se houver uma conta ligada a ela, fica sem ligação (não é eliminada).")) return;
+  if (!confirm("Remover este concessionário da lista? Se houver uma conta ligada a ele, fica sem ligação (não é eliminada).")) return;
   await adminFetch(`/api/admin/official-dealers/${id}`, { method: "DELETE" });
-  showToast("Loja removida da lista oficial.");
+  showToast("Concessionário removido da lista.");
   loadOfficialDealers();
 }
 
@@ -1145,14 +1145,14 @@ function renderAlerts(alerts) {
 
 // ---------- log de atividade ----------
 const ACTION_LABELS = {
-  dealer_created_manually: "Concessionário criado manualmente",
-  dealer_verified: "Concessionário verificado",
-  dealer_updated: "Concessionário editado",
-  dealer_deleted: "Concessionário eliminado",
+  dealer_created_manually: "Conta criada manualmente",
+  dealer_verified: "Conta verificada",
+  dealer_updated: "Conta editada",
+  dealer_deleted: "Conta eliminada",
   listing_deleted: "Peça eliminada",
-  official_dealer_created: "Loja adicionada à lista oficial",
-  official_dealer_updated: "Loja da lista oficial editada",
-  official_dealer_deleted: "Loja removida da lista oficial",
+  official_dealer_created: "Concessionário adicionado à lista",
+  official_dealer_updated: "Concessionário da lista editado",
+  official_dealer_deleted: "Concessionário removido da lista",
 };
 
 async function loadActivityLog() {

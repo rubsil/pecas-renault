@@ -844,8 +844,8 @@ export default {
       return json({
         dealerId: result.meta.last_row_id,
         message: verification.officialDealerId
-          ? "Concessionário criado e ligado à lista oficial."
-          : "Concessionário criado (sem correspondência na lista oficial da Renault).",
+          ? "Conta criada e ligada à lista de concessionários."
+          : "Conta criada (sem correspondência na lista de concessionários).",
       });
     }
 
@@ -889,7 +889,7 @@ export default {
         await logAdminActivity(env.DB, "dealer_updated", "dealer", dealerId, JSON.stringify(body));
       }
 
-      return json({ message: "Concessionário atualizado." });
+      return json({ message: "Conta atualizada." });
     }
 
     // ---------- eliminar um concessionário (e as suas peças) ----------
@@ -903,7 +903,7 @@ export default {
       await env.DB.prepare("DELETE FROM dealers WHERE id = ?").bind(dealerId).run();
 
       await logAdminActivity(env.DB, "dealer_deleted", "dealer", dealerId, dealer?.company_name || null);
-      return json({ message: "Concessionário e respetivas peças eliminados." });
+      return json({ message: "Conta e respetivas peças eliminadas." });
     }
 
     // ---------- reenviar código de confirmação de email ----------
@@ -916,9 +916,9 @@ export default {
         .bind(dealerId)
         .first<{ id: number; email_confirmed: number }>();
 
-      if (!dealer) return json({ error: "Concessionário não encontrado." }, { status: 404 });
+      if (!dealer) return json({ error: "Conta não encontrada." }, { status: 404 });
       if (dealer.email_confirmed) {
-        return json({ error: "Este concessionário já tem o email confirmado." }, { status: 400 });
+        return json({ error: "Esta conta já tem o email confirmado." }, { status: 400 });
       }
 
       const code = await createLoginCode(env.DB, dealer.id);
