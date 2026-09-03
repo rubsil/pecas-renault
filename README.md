@@ -4,288 +4,73 @@ Marketplace interno para concessionários e agentes Renault/Dacia
 publicarem stock de peças paradas, para que outros concessionários
 possam encontrá-las por referência em vez de encomendar peça nova.
 
-Sem scraping, sem dependência de terceiros frágeis: os únicos dados
-externos usados são a lista pública de concessionários da Renault
-(para validação de registos), importada uma vez.
+Nasceu de um problema concreto: peças sem rotatividade local que
+ficam paradas em armazém, quando podiam ser exatamente o que outro
+concessionário está à procura noutro ponto da rede.
 
-## Estrutura
+## Como funciona
 
-```
-peca-troca/
-├── worker/              Cloudflare Worker (API) + D1
-│   ├── src/
-│   │   ├── index.ts      rotas da API
-│   │   ├── normalize.ts  normalização de texto/telefone/referência
-│   │   ├── verification.ts  validação contra lista oficial
-│   │   └── auth.ts       login por código (magic link)
-│   ├── schema.sql        schema da base de dados
-│   └── wrangler.toml     configuração de deploy
-├── web/                  Frontend estático (GitHub Pages ou Cloudflare Pages)
-│   ├── index.html         pesquisa de peças
-│   ├── conta.html          registo / login / dashboard
-│   └── publicar.html       publicar peça
-├── data/
-│   ├── dealers_page1.json  lista oficial de concessionários (30 de ~100+)
-│   └── import_dealers.sql  SQL gerado, pronto a importar
-└── scripts/
-    └── import_dealers.py   gera o SQL de importação a partir do JSON
-```
+Cada concessionário regista-se com o nome da empresa e o telefone.
+O sistema confirma automaticamente a identidade cruzando esses dados
+contra a lista pública de concessionários oficiais da Renault — sem
+necessidade de aprovação manual na maioria dos casos.
 
-## Deploy — passo a passo
+Depois de registado e verificado, pode publicar peças que tem em
+stock parado (referência, descrição, quantidade, notas), incluindo
+referências de substituição — uma peça pode ter vários códigos ao
+longo do tempo, e a pesquisa encontra-a por qualquer um deles.
 
-### 1. Criar a base de dados D1
+A pesquisa é pública e não exige conta — qualquer pessoa pode
+verificar se uma referência está disponível algures na rede antes de
+decidir registar-se para publicar.
 
-```bash
-cd worker
-wrangler d1 create peca-troca-db
-```
+## Arquitetura
 
-Copia o `database_id` que aparece no output e cola em `wrangler.toml`.
+- **Frontend**: páginas estáticas em HTML/JS puro (sem framework),
+  servidas por GitHub Pages.
+- **Backend**: Cloudflare Worker, sem servidor tradicional a gerir.
+- **Base de dados**: Cloudflare D1 (SQLite na edge).
 
-### 2. Aplicar o schema
+Sem scraping e sem dependência de terceiros frágeis: a única fonte de
+dados externa é a lista pública de concessionários da Renault, usada
+apenas para validar registos — importada uma vez, não consultada em
+tempo real.
 
-```bash
-wrangler d1 execute peca-troca-db --file=schema.sql --remote
-```
+## Decisões de design
 
-### 3. Importar a lista oficial de concessionários
+- **Validação por telefone + código postal.** O telefone confirma que
+  o concessionário é real (cruzado contra a lista oficial). Algumas
+  cadeias (ex: Carby, Santogal) usam a mesma central telefónica para
+  várias lojas — nesse caso, o código postal desempata qual loja
+  exata. Sem ele, o registo fica pendente de confirmação manual em
+  vez de o sistema adivinhar.
 
-Já há 30 concessionários (página 1 de 4) em `data/dealers_page1.json`,
-recolhidos de https://www.renault.pt/concessionarios/lista-concessionarios.html.
+- **Email confirmado, mas telefone é a identidade forte.** O telefone
+  nunca muda depois do registo. O email serve para login e como
+  contacto por escrito entre concessionários, mas só fica ativo depois
+  de confirmado uma vez — evita que um erro de digitação bloqueie o
+  acesso a uma conta que nem chegou a existir de facto.
 
-**Falta completar as páginas 2, 3 e 4** — o site carrega a lista via
-JavaScript, por isso não dá para simplesmente fazer fetch da página;
-é preciso abrir cada página num browser real (ou usar uma ferramenta
-com JS rendering) e copiar os dados no mesmo formato de
-`dealers_page1.json` para `dealers_page2.json`, `dealers_page3.json`,
-`dealers_page4.json`.
+- **Referências de substituição.** Ao publicar uma peça, é possível
+  adicionar códigos alternativos (referência antiga, nova, ou de
+  fornecedor diferente). A pesquisa considera todos, não só a
+  referência principal — resolve o caso comum de alguém procurar pelo
+  código "errado" e não encontrar uma peça que na verdade está lá.
 
-Depois de teres todos os ficheiros em `data/`:
+- **Sem scraping.** Ao contrário de abordagens que dependem de extrair
+  dados de sites de terceiros (frágil, muda sem aviso, levanta questões
+  legais), a única fonte externa usada é a lista pública e oficial de
+  concessionários, consultada uma única vez para validação — não há
+  nada a "quebrar" quando um site terceiro muda de layout.
 
-```bash
-python3 scripts/import_dealers.py
-wrangler d1 execute peca-troca-db --file=data/import_dealers.sql --remote
-```
+## Estado do projeto
 
-Isto é seguro correr mais do que uma vez com ficheiros diferentes —
-cada INSERT é independente. Para evitar duplicados se corrqueres o
-mesmo ficheiro duas vezes, podes limpar a tabela antes:
-`wrangler d1 execute peca-troca-db --command="DELETE FROM official_dealers" --remote`
+Hobby pessoal, em uso ativo. Não é um produto comercial nem aceita
+contribuições externas neste momento.
 
-### 4. Deploy do Worker
+## Gestão
 
-```bash
-cd worker
-wrangler deploy
-```
-
-Isto dá-te um URL do género `https://peca-troca-api.<subdomínio>.workers.dev`.
-
-### 5. Ligar o frontend ao Worker
-
-Em cada ficheiro HTML (`web/index.html`, `web/conta.html`, `web/publicar.html`),
-troca:
-
-```js
-const API_BASE = "https://peca-troca-api.workers.dev";
-```
-
-pelo URL real que o `wrangler deploy` te deu.
-
-### 6. Publicar o frontend
-
-A forma mais simples é GitHub Pages, tal como no nif-nome:
-
-```bash
-git init
-git add .
-git commit -m "Primeira versão"
-git remote add origin <o-teu-repo>
-git push -u origin main
-```
-
-Depois, nas definições do repositório GitHub → Pages → escolher a pasta `web/`.
-
-## O que falta antes de mandares o email aos concessionários
-
-- [x] Repositório no ar, GitHub Pages ligado (`docs/`), Worker deployado
-      via Workers Builds (deploy automático a cada push)
-- [x] Lista oficial completa (97 concessionários) importada para a D1
-- [x] Validação automática por telefone + desempate por código postal
-      (cadeias como Carby/Santogal)
-- [x] Fluxo de registo → confirmação de email → login testado de ponta a ponta
-- [x] Painel de administrador — gestão de
-      concessionários, peças e password de registo
-- [ ] **Aplicar a migração `worker/migrations/0001_email_confirmation.sql`**
-      na D1, se ainda não o fizeste (consola do dashboard Cloudflare —
-      ver secção 2 acima).
-- [ ] **Aplicar a migração `worker/migrations/0002_settings_table.sql`**
-      na D1 — cria a tabela `settings` usada pela password de registo e
-      pelo painel de administrador. Sem isto, o separador
-      "Configurações" do painel não funciona.
-- [ ] **Aplicar a migração `worker/migrations/0003_remove_reserved_status.sql`**
-      na D1 — o estado `reserved` foi removido (nunca teve ação
-      correspondente no dashboard do concessionário, só existia no
-      painel de admin sem ninguém o usar). Esta migração só é
-      necessária se por acaso já tiveres alguma peça marcada como
-      `reserved`; caso contrário é inofensiva de qualquer forma.
-- [ ] **Aplicar a migração `worker/migrations/0004_dealer_verified_at.sql`**
-      na D1 — adiciona a coluna `verified_at`, usada pelo painel de
-      admin para mostrar a data de verificação de cada concessionário.
-      Sem isto, essa coluna aparece sempre vazia.
-- [ ] **Aplicar a migração `worker/migrations/0005_admin_activity_log.sql`**
-      na D1 — cria a tabela `admin_activity_log`, usada pelo separador
-      "Log" do painel. Sem isto, esse separador falha ao carregar.
-- [ ] **Aplicar a migração `worker/migrations/0006_listing_alt_references.sql`**
-      na D1 — cria a tabela `listing_alt_references`, usada para as
-      referências de substituição de cada peça. Sem isto, publicar ou
-      editar uma peça com referências alternativas falha.
-- [x] **Definir o secret `ADMIN_PASSWORD`** no Worker, para poderes
-      entrar no painel de administrador. **Usa
-      `wrangler secret put ADMIN_PASSWORD`** (a partir da pasta
-      `worker/`), não o dashboard Cloudflare — ver aviso importante
-      abaixo. Sem este secret definido, o painel de administrador
-      fica sempre bloqueado, que é o comportamento seguro por omissão.
-
-  > **Aviso — não uses o dashboard para secrets deste projeto.**
-  > Definir o `ADMIN_PASSWORD` em Workers & Pages → Settings →
-  > Variables and Secrets pareceu funcionar mas foi apagado
-  > silenciosamente no deploy seguinte feito pelo Workers Builds
-  > (bug conhecido da integração Git da Cloudflare — o CI limpa
-  > secrets definidos manualmente a cada novo push). O sintoma foi
-  > "password inválida" mesmo com o valor certo, sem erro nenhum
-  > a apontar para a causa real.
-  >
-  > A forma correta e estável é sempre por linha de comandos:
-  > ```
-  > cd worker
-  > wrangler secret put ADMIN_PASSWORD
-  > ```
-  > Isto grava o secret diretamente na versão publicada do Worker,
-  > sem depender do processo de build do GitHub — sobrevive a
-  > pushes seguintes sem se perder.
-
-- [ ] Ligar o envio do código de confirmação a um serviço real de email
-      (ver `NOTA DE IMPLEMENTAÇÃO` em `worker/src/index.ts`). Sem isto,
-      o código aparece só na resposta da API (`devCode`) — bom para
-      testar, não pronto para produção.
-- [ ] Publicar 15-20 referências tuas próprias, para a plataforma não parecer
-      vazia ao primeiro concessionário que entra.
-- [ ] Rever o texto do email de apresentação e incluir o link direto para
-      `conta.html`. Se definires uma password de registo (painel de
-      admin → Configurações), inclui-a nesse email.
-
-## Painel de administrador
-
-Este projeto tem uma página de gestão interna, para o criador da
-plataforma poder corrigir problemas e gerir dados diretamente —
-concessionários, peças, registo — de forma mais rápida e eficaz do
-que editar a base de dados manualmente. É protegida por password
-(`ADMIN_PASSWORD`, ver acima) e só o criador da plataforma tem acesso
-a essa password; o caminho da página não é divulgado aqui de
-propósito, como camada extra (mas não a principal — ver nota de
-segurança abaixo).
-
-- **Estatísticas** (topo da página): total de concessionários,
-  verificados, pendentes, peças ativas, publicadas nos últimos 7 dias.
-  As tabs "Concessionários" e "Alertas" mostram um badge numérico
-  quando há pendências, visível mesmo sem abrir esse separador.
-- **Contas**: editar nome/telefone/email/cidade, marcar como
-  verificado manualmente, eliminar conta (e as suas peças — o aviso de
-  confirmação diz quantas peças ativas tem, para não eliminares sem
-  perceber o impacto), ver data de registo e de verificação, reenviar
-  código de confirmação de email a quem ficou preso nesse passo, criar
-  conta manualmente já verificada e com email confirmado (sem código
-  nenhum, com autofill do nome a partir da lista oficial). Tabela
-  ordenável por qualquer coluna (clicar no cabeçalho).
-- **Concessionários**: os 97 concessionários da Renault, cruzados com o
-  estado de registo na plataforma — quem já está registado (e se está
-  verificado) e quem ainda não apareceu. Filtro rápido para veres só
-  quem falta registar, útil para saberes a quem vale a pena voltar a
-  lembrar sobre a plataforma. Totalmente editável (nome, cidade,
-  telefone, código postal) e dá para adicionar ou remover lojas —
-  útil quando a Renault abre/fecha um concessionário e a lista precisa
-  de correção sem mexer em SQL.
-- **Peças**: editar referência/descrição/quantidade/estado/referências
-  de substituição (mesmo componente de tags do resto do site), eliminar
-  qualquer peça de qualquer concessionário, filtrar por concessionário,
-  pesquisar por referência/descrição, ordenar por qualquer coluna
-  (mais recentes primeiro por defeito), ver data de publicação/última
-  atualização.
-- **Alertas**: concessionários que pediram para ser avisados quando
-  alguém publicar uma referência que ainda não existe. Mostra
-  automaticamente se já há alguma peça ativa com essa referência
-  (e de quem), para apanhares pedidos já satisfeitos que ninguém
-  reparou. Dá para eliminar os que já não fazem sentido.
-- **Log**: as últimas 200 ações feitas no painel (criar, verificar,
-  editar, eliminar), com data e detalhe — rasto de auditoria simples,
-  não regista leituras, só escritas.
-- **Configurações**: definir ou remover a password de registo (se
-  definida, o registo passa a exigir esse código; se vazia, qualquer
-  concessionário da lista oficial pode registar-se livremente), e
-  exportar concessionários/peças em CSV para abrir no Excel.
-
-A autenticação é uma password única (`ADMIN_PASSWORD`, ver acima),
-sem sessões — cada ação no painel envia a password num header. É
-simples de propósito: só uma pessoa usa isto, sempre por HTTPS, com
-volume de uso baixo.
-
-**Nota de segurança**: a proteção real é a password. O ficheiro do
-painel continua listado na estrutura pública deste repositório no
-GitHub como qualquer outro — não referir o caminho aqui só reduz
-descoberta casual, não é segurança por si só. Nunca assumir o
-contrário.
-
-## Correções manuais (email mal escrito, etc.)
-
-Como o volume de concessionários é pequeno, correções pontuais também
-podem ser feitas diretamente na consola D1 do dashboard Cloudflare
-(alternativa ao painel de administrador acima). Exemplo, para corrigir
-um email:
-
-```sql
-UPDATE dealers SET email = 'email-correto@exemplo.pt', email_confirmed = 0 WHERE phone_normalized = '292240200';
-```
-
-Colocar `email_confirmed = 0` obriga a nova confirmação, para garantir
-que o email corrigido é mesmo válido antes de voltar a servir para login.
-
-## Notas de design
-
-- Cada concessionário regista-se com nome da empresa + telefone + código
-  postal. O sistema cruza automaticamente contra a lista oficial da
-  Renault: telefone exato = validação automática imediata. Algumas
-  cadeias (Carby, Santogal) usam a mesma central telefónica para várias
-  lojas — nesses casos o código postal desempata qual loja exata; sem
-  ele, fica pendente para confirmação manual em vez de adivinhar
-  (ver `worker/src/verification.ts`).
-- **Nome da empresa no registo**: a lista oficial da Renault usa muitas
-  vezes um nome comercial abreviado, não a razão social completa — ex:
-  "CARLOS ALBERTO - FAIAL" em vez de "Carlos Alberto Gonçalves da Silva
-  e Filho, Lda". O telefone continua a validar corretamente mesmo que o
-  concessionário escreva o nome legal completo, mas para o matching por
-  nome funcionar melhor (caso de telefone não bater), convém escrever o
-  nome tal como aparece em
-  https://www.renault.pt/concessionarios/lista-concessionarios.html.
-- Login sem password: pede-se um código de 6 dígitos, trocado por um
-  token de sessão de 30 dias.
-- **Telefone vs. email**: o telefone é a identidade forte (validado
-  contra a lista oficial da Renault) e nunca muda depois do registo.
-  O email é obrigatório desde o início — serve para login e como
-  contacto por escrito entre concessionários — mas só fica ativo
-  depois de confirmado uma vez, logo a seguir ao registo (evita que
-  um erro de digitação no email deixe alguém sem conseguir entrar
-  antes sequer de a conta funcionar). Se o email ficar mal escrito,
-  a correção é manual, diretamente na D1 — dado o volume pequeno de
-  concessionários, não vale a pena um fluxo de recuperação automático
-  para isto (ver `worker/migrations/0001_email_confirmation.sql`).
-- A pesquisa de peças é pública (não exige login) — só publicar exige conta.
-  Isto reduz fricção para quem só quer verificar se algo existe antes de
-  decidir registar-se.
-- **Referências de substituição**: uma peça pode ter vários códigos ao
-  longo do tempo (referência antiga, nova, ou de fornecedor diferente).
-  Ao publicar ou editar, dá para adicionar referências alternativas
-  através de um campo de "tags" (escreve e carrega Enter — sem
-  vírgulas manuais). A pesquisa procura tanto na referência principal
-  como em todas as alternativas, para quem procura pelo código "errado"
-  continuar a encontrar a peça (ver `worker/migrations/0006_listing_alt_references.sql`).
+Existe uma página de administração interna, para o criador da
+plataforma gerir e corrigir dados diretamente (concessionários,
+peças, registo) de forma mais rápida do que editar a base de dados
+à mão. Protegida por password; só o criador da plataforma tem acesso.
