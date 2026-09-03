@@ -83,7 +83,8 @@
   </div>
   <nav>
     <a href="index.html">Procurar</a>
-    <a href="conta.html">A minha conta</a>
+    <a href="conta.html" id="nav-account-link">A minha conta</a>
+    <a href="conta.html" id="nav-session-link">Iniciar sessão</a>
   </nav>
 </header>
 
@@ -102,7 +103,7 @@
 
   <form id="publish-form">
     <label for="reference">Referência da peça</label>
-    <input type="text" id="reference" placeholder="8200 123456" required />
+    <input type="text" id="reference" placeholder="8200123456" required />
 
     <label for="description">Descrição</label>
     <input type="text" id="description" placeholder="ex: Filtro de ar Clio IV" />
@@ -193,6 +194,21 @@ document.getElementById("publish-form").addEventListener("submit", async (e) => 
 function showMessage(el, text, type) {
   el.textContent = text;
   el.className = `message show ${type}`;
+}
+
+// ---------- estado de sessão no header ----------
+const sessionLink = document.getElementById("nav-session-link");
+if (token) {
+  sessionLink.textContent = "Terminar sessão";
+  sessionLink.href = "#";
+  sessionLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    localStorage.removeItem("pt_session");
+    location.href = "index.html";
+  });
+} else {
+  document.getElementById("nav-account-link").style.display = "none";
+  sessionLink.textContent = "Iniciar sessão";
 }
 
 init();

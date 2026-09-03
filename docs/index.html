@@ -278,7 +278,8 @@
   </div>
   <nav>
     <a href="publicar.html">Publicar peça</a>
-    <a href="conta.html">A minha conta</a>
+    <a href="conta.html" id="nav-account-link">A minha conta</a>
+    <a href="conta.html" id="nav-session-link">Iniciar sessão</a>
   </nav>
 </header>
 
@@ -286,15 +287,15 @@
 
   <div class="search-block">
     <h1>Procura uma referência</h1>
-    <p>Vê que concessionários têm essa peça parada em stock.</p>
+    <p>Vê que concessionários têm essa peça parada em stock, ou explora tudo o que está publicado.</p>
     <div class="search-row">
-      <input type="text" id="ref-input" placeholder="ex: 8200 123456" autocomplete="off" />
+      <input type="text" id="ref-input" placeholder="ex: 8200123456" autocomplete="off" />
       <button id="search-btn">Procurar</button>
     </div>
   </div>
 
   <div id="results-area">
-    <div class="status-line">Escreve pelo menos 2 caracteres da referência.</div>
+    <div class="status-line">A carregar peças publicadas…</div>
   </div>
 
   <div class="divider-label">tens peças paradas?</div>
@@ -317,10 +318,63 @@ const input = document.getElementById("ref-input");
 const btn = document.getElementById("search-btn");
 const resultsArea = document.getElementById("results-area");
 
+function renderResults(results, emptyMessage) {
+  if (results.length === 0) {
+    resultsArea.innerHTML = `
+      <div class="empty-state">
+        ${emptyMessage}<br>
+        <a href="publicar.html" style="color: var(--accent-text); font-weight: 600;">Publica o que tens em stock →</a>
+      </div>`;
+    return;
+  }
+
+  resultsArea.innerHTML = '<div class="results"></div>';
+  const list = resultsArea.querySelector(".results");
+
+  for (const r of results) {
+    const card = document.createElement("div");
+    card.className = "result-card";
+
+    const phoneDigits = (r.phone || "").replace(/\D+/g, "");
+    const badge = r.verified
+      ? '<span class="badge-verified">Verificado</span>'
+      : '<span class="badge-pending">Por confirmar</span>';
+
+    card.innerHTML = `
+      <div class="result-ref">${escapeHtml(r.reference)}</div>
+      <div class="result-qty">${r.quantity} un.</div>
+      ${r.description ? `<div class="result-desc">${escapeHtml(r.description)}</div>` : ""}
+      <div class="result-dealer">
+        <strong>${escapeHtml(r.company_name)}</strong>
+        ${badge}
+        <span>${escapeHtml(r.city || "")}</span>
+        ${r.phone ? `<a href="tel:${phoneDigits}">${escapeHtml(r.phone)}</a>` : ""}
+        ${r.email ? `<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>` : ""}
+      </div>
+    `;
+    list.appendChild(card);
+  }
+}
+
+async function loadAllListings() {
+  resultsArea.innerHTML = '<div class="status-line">A carregar peças publicadas…</div>';
+  try {
+    const res = await fetch(`${API_BASE}/api/listings/browse`);
+    const data = await res.json();
+    if (!res.ok) {
+      resultsArea.innerHTML = `<div class="status-line">${data.error || "Não foi possível carregar."}</div>`;
+      return;
+    }
+    renderResults(data.results || [], "Ainda ninguém publicou nenhuma peça.");
+  } catch (err) {
+    resultsArea.innerHTML = '<div class="status-line">Erro de ligação. Tenta novamente.</div>';
+  }
+}
+
 async function runSearch() {
   const ref = input.value.trim();
   if (ref.length < 2) {
-    resultsArea.innerHTML = '<div class="status-line">Escreve pelo menos 2 caracteres da referência.</div>';
+    loadAllListings();
     return;
   }
 
@@ -335,42 +389,7 @@ async function runSearch() {
       return;
     }
 
-    const results = data.results || [];
-    if (results.length === 0) {
-      resultsArea.innerHTML = `
-        <div class="empty-state">
-          Ninguém publicou ainda essa referência.<br>
-          <a href="publicar.html" style="color: var(--accent-text); font-weight: 600;">Sê o primeiro a avisar quando alguém tiver.</a>
-        </div>`;
-      return;
-    }
-
-    resultsArea.innerHTML = '<div class="results"></div>';
-    const list = resultsArea.querySelector(".results");
-
-    for (const r of results) {
-      const card = document.createElement("div");
-      card.className = "result-card";
-
-      const phoneDigits = (r.phone || "").replace(/\D+/g, "");
-      const badge = r.verified
-        ? '<span class="badge-verified">Verificado</span>'
-        : '<span class="badge-pending">Por confirmar</span>';
-
-      card.innerHTML = `
-        <div class="result-ref">${escapeHtml(r.reference)}</div>
-        <div class="result-qty">${r.quantity} un.</div>
-        ${r.description ? `<div class="result-desc">${escapeHtml(r.description)}</div>` : ""}
-        <div class="result-dealer">
-          <strong>${escapeHtml(r.company_name)}</strong>
-          ${badge}
-          <span>${escapeHtml(r.city || "")}</span>
-          ${r.phone ? `<a href="tel:${phoneDigits}">${escapeHtml(r.phone)}</a>` : ""}
-          ${r.email ? `<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>` : ""}
-        </div>
-      `;
-      list.appendChild(card);
-    }
+    renderResults(data.results || [], "Ninguém publicou ainda essa referência.");
   } catch (err) {
     resultsArea.innerHTML = '<div class="status-line">Erro de ligação. Tenta novamente.</div>';
   }
@@ -382,8 +401,32 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Se o campo ficar vazio (ex: user apaga tudo), volta a mostrar tudo.
+input.addEventListener("input", () => {
+  if (input.value.trim().length === 0) loadAllListings();
+});
+
 btn.addEventListener("click", runSearch);
 input.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
+
+// ---------- estado de sessão no header ----------
+const sessionToken = localStorage.getItem("pt_session");
+const sessionLink = document.getElementById("nav-session-link");
+if (sessionToken) {
+  sessionLink.textContent = "Terminar sessão";
+  sessionLink.href = "#";
+  sessionLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    localStorage.removeItem("pt_session");
+    location.reload();
+  });
+} else {
+  document.getElementById("nav-account-link").style.display = "none";
+  sessionLink.textContent = "Iniciar sessão";
+}
+
+// ---------- carregar lista ao abrir a página ----------
+loadAllListings();
 </script>
 
 </body>

@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS parts_listings (
   quantity INTEGER NOT NULL DEFAULT 1,
   brand TEXT NOT NULL DEFAULT 'renault',    -- 'renault' | 'dacia'
   notes TEXT,                               -- "novo/selado", "embalagem aberta", etc
-  status TEXT NOT NULL DEFAULT 'active',    -- 'active' | 'reserved' | 'removed'
+  status TEXT NOT NULL DEFAULT 'active',    -- 'active' | 'reserved' | 'sold' | 'removed'
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

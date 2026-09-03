@@ -108,6 +108,39 @@
   }
   .listing-ref { font-family: var(--mono); font-weight: 700; }
   .listing-meta { color: var(--ink-faint); font-size: 0.8rem; }
+
+  .listing-controls { display: flex; align-items: center; gap: 0.4rem; }
+  .qty-btn {
+    width: 1.8rem; height: 1.8rem; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--paper-raised); font-size: 1rem; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; color: var(--ink);
+  }
+  .qty-btn:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); }
+  .qty-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .qty-value { font-family: var(--mono); font-weight: 700; min-width: 1.4rem; text-align: center; }
+  .delete-btn {
+    width: 1.8rem; height: 1.8rem; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--paper-raised); color: var(--danger); cursor: pointer; margin-left: 0.4rem;
+    font-size: 0.95rem; display: flex; align-items: center; justify-content: center;
+  }
+  .delete-btn:hover { background: var(--danger-soft); border-color: var(--danger); }
+
+  .autocomplete-wrap { position: relative; }
+  .autocomplete-list {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+    background: var(--paper-raised); border: 1px solid var(--line); border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    max-height: 220px; overflow-y: auto; display: none;
+  }
+  .autocomplete-list.show { display: block; }
+  .autocomplete-item {
+    padding: 0.6rem 0.8rem; cursor: pointer; font-size: 0.88rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover, .autocomplete-item.active { background: var(--accent-soft); }
+  .autocomplete-item .ac-name { font-weight: 600; color: var(--ink); }
+  .autocomplete-item .ac-meta { color: var(--ink-faint); font-size: 0.78rem; margin-top: 0.1rem; }
 </style>
 </head>
 <body>
@@ -135,6 +168,10 @@
       <div id="login-step-phone">
         <label for="login-phone">Telefone da conta</label>
         <input type="tel" id="login-phone" placeholder="21 234 5678" />
+
+        <label for="login-email">Email da conta</label>
+        <input type="email" id="login-email" placeholder="pecas@exemplo.pt" />
+        <div class="hint">Pedimos os dois porque algumas lojas de uma mesma cadeia partilham o telefone da central.</div>
         <div class="hint">Enviamos um código de acesso para este número.</div>
         <button class="submit" id="btn-request-code">Pedir código</button>
       </div>
@@ -151,7 +188,10 @@
 
     <div class="panel" id="panel-register">
       <label for="reg-company">Nome da empresa (como está registado na Renault)</label>
-      <input type="text" id="reg-company" placeholder="Auto Exemplo, Lda" />
+      <div class="autocomplete-wrap">
+        <input type="text" id="reg-company" placeholder="Auto Exemplo, Lda" autocomplete="off" />
+        <div class="autocomplete-list" id="reg-company-suggestions"></div>
+      </div>
 
       <label for="reg-contact">Pessoa de contacto</label>
       <input type="text" id="reg-contact" placeholder="Nome do responsável de peças" />
@@ -217,6 +257,110 @@ document.querySelectorAll(".tab").forEach(tab => {
     tab.classList.add("active");
     document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
   });
+});
+
+// ---------- autocomplete do nome da empresa ----------
+const companyInput = document.getElementById("reg-company");
+const suggestionsBox = document.getElementById("reg-company-suggestions");
+let autocompleteTimer = null;
+let autocompleteActiveIndex = -1;
+
+companyInput.addEventListener("input", () => {
+  clearTimeout(autocompleteTimer);
+  const q = companyInput.value.trim();
+  if (q.length < 2) {
+    suggestionsBox.classList.remove("show");
+    suggestionsBox.innerHTML = "";
+    return;
+  }
+  // Debounce de 250ms — evita um pedido à API a cada tecla premida.
+  autocompleteTimer = setTimeout(() => fetchSuggestions(q), 250);
+});
+
+async function fetchSuggestions(q) {
+  try {
+    const res = await fetch(`${API_BASE}/api/dealers/suggest?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    renderSuggestions(data.results || []);
+  } catch (err) {
+    suggestionsBox.classList.remove("show");
+  }
+}
+
+function renderSuggestions(results) {
+  autocompleteActiveIndex = -1;
+  if (results.length === 0) {
+    suggestionsBox.classList.remove("show");
+    suggestionsBox.innerHTML = "";
+    return;
+  }
+
+  suggestionsBox.innerHTML = results.map(r => `
+    <div class="autocomplete-item"
+         data-name="${escapeAttr(r.company_name)}"
+         data-city="${escapeAttr(r.city || "")}"
+         data-postal="${escapeAttr(r.postal_code || "")}"
+         data-phone="${escapeAttr(r.phone || "")}">
+      <div class="ac-name">${escapeAttr(r.company_name)}</div>
+      <div class="ac-meta">${escapeAttr(r.city || "")}${r.postal_code ? " · " + escapeAttr(r.postal_code) : ""}</div>
+    </div>
+  `).join("");
+  suggestionsBox.classList.add("show");
+
+  suggestionsBox.querySelectorAll(".autocomplete-item").forEach(item => {
+    item.addEventListener("click", () => applySuggestion(item));
+  });
+}
+
+function applySuggestion(item) {
+  companyInput.value = item.dataset.name;
+  document.getElementById("reg-city").value = item.dataset.city;
+  document.getElementById("reg-postal").value = item.dataset.postal;
+  // Só preenche o telefone se o campo ainda estiver vazio — não quero
+  // sobrescrever um número que a pessoa já tenha escrito.
+  const phoneField = document.getElementById("reg-phone");
+  if (!phoneField.value.trim() && item.dataset.phone) phoneField.value = item.dataset.phone;
+  suggestionsBox.classList.remove("show");
+  suggestionsBox.innerHTML = "";
+}
+
+function escapeAttr(str) {
+  const div = document.createElement("div");
+  div.textContent = str || "";
+  return div.innerHTML;
+}
+
+// Navegação com teclado (setas + Enter) dentro da lista de sugestões.
+companyInput.addEventListener("keydown", (e) => {
+  const items = suggestionsBox.querySelectorAll(".autocomplete-item");
+  if (!items.length || !suggestionsBox.classList.contains("show")) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    autocompleteActiveIndex = Math.min(autocompleteActiveIndex + 1, items.length - 1);
+    updateActiveItem(items);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    autocompleteActiveIndex = Math.max(autocompleteActiveIndex - 1, 0);
+    updateActiveItem(items);
+  } else if (e.key === "Enter" && autocompleteActiveIndex >= 0) {
+    e.preventDefault();
+    applySuggestion(items[autocompleteActiveIndex]);
+  } else if (e.key === "Escape") {
+    suggestionsBox.classList.remove("show");
+  }
+});
+
+function updateActiveItem(items) {
+  items.forEach((item, i) => item.classList.toggle("active", i === autocompleteActiveIndex));
+  items[autocompleteActiveIndex]?.scrollIntoView({ block: "nearest" });
+}
+
+// Fecha a lista se clicar fora dela.
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".autocomplete-wrap")) {
+    suggestionsBox.classList.remove("show");
+  }
 });
 
 // ---------- registo ----------
@@ -303,10 +447,11 @@ let loginNeedsEmailConfirmation = false;
 
 document.getElementById("btn-request-code").addEventListener("click", async () => {
   const phone = document.getElementById("login-phone").value.trim();
+  const email = document.getElementById("login-email").value.trim();
   const msg = document.getElementById("login-message");
 
-  if (!phone) {
-    showMessage(msg, "Indica o teu telefone.", "error");
+  if (!phone || !email) {
+    showMessage(msg, "Indica o telefone e o email da conta.", "error");
     return;
   }
 
@@ -314,7 +459,7 @@ document.getElementById("btn-request-code").addEventListener("click", async () =
     const res = await fetch(`${API_BASE}/api/auth/request-code`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ phone, email }),
     });
     const data = await res.json();
 
@@ -403,28 +548,79 @@ async function loadDashboard() {
       headers: { authorization: `Bearer ${token}` },
     });
     const listingsData = await listingsRes.json();
-    const container = document.getElementById("my-listings");
-    container.innerHTML = "";
-
-    if (!listingsData.results || listingsData.results.length === 0) {
-      container.innerHTML = '<p style="color: var(--ink-faint); font-size: 0.88rem;">Ainda não publicaste nenhuma peça.</p>';
-      return;
-    }
-
-    for (const l of listingsData.results) {
-      const row = document.createElement("div");
-      row.className = "listing-row";
-      row.innerHTML = `
-        <div>
-          <div class="listing-ref">${l.reference}</div>
-          <div class="listing-meta">${l.quantity} un. · ${l.status}</div>
-        </div>
-      `;
-      container.appendChild(row);
-    }
+    renderMyListings(listingsData.results || [], token);
   } catch (err) {
     // sessão inválida, deixa o utilizador no ecrã de login
   }
+}
+
+function renderMyListings(listings, token) {
+  const container = document.getElementById("my-listings");
+  container.innerHTML = "";
+
+  const active = listings.filter(l => l.status !== "removed");
+
+  if (active.length === 0) {
+    container.innerHTML = '<p style="color: var(--ink-faint); font-size: 0.88rem;">Ainda não publicaste nenhuma peça.</p>';
+    return;
+  }
+
+  for (const l of active) {
+    const row = document.createElement("div");
+    row.className = "listing-row";
+
+    const statusLabel = { active: "disponível", reserved: "reservada", sold: "vendida" }[l.status] || l.status;
+
+    row.innerHTML = `
+      <div>
+        <div class="listing-ref">${escapeHtmlLocal(l.reference)}</div>
+        <div class="listing-meta">${statusLabel}${l.description ? " · " + escapeHtmlLocal(l.description) : ""}</div>
+      </div>
+      <div class="listing-controls">
+        <button class="qty-btn" data-action="dec" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>−</button>
+        <span class="qty-value">${l.quantity}</span>
+        <button class="qty-btn" data-action="inc" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>+</button>
+        <button class="delete-btn" data-action="delete" data-id="${l.id}" title="Eliminar">✕</button>
+      </div>
+    `;
+    container.appendChild(row);
+  }
+
+  container.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => handleListingAction(btn.dataset.action, Number(btn.dataset.id), token));
+  });
+}
+
+async function handleListingAction(action, listingId, token) {
+  if (action === "delete") {
+    if (!confirm("Eliminar este anúncio definitivamente?")) return;
+    await fetch(`${API_BASE}/api/listings/${listingId}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    loadDashboard();
+    return;
+  }
+
+  // dec/inc: lê a quantidade atual a partir do DOM em vez de guardar
+  // estado à parte — mais simples, e o dashboard é pequeno.
+  const row = document.querySelector(`button[data-id="${listingId}"]`).closest(".listing-row");
+  const currentQty = Number(row.querySelector(".qty-value").textContent);
+  const newQty = action === "dec" ? currentQty - 1 : currentQty + 1;
+  if (newQty < 0) return;
+
+  await fetch(`${API_BASE}/api/listings/${listingId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ quantity: newQty }),
+  });
+  loadDashboard();
+}
+
+function escapeHtmlLocal(str) {
+  const div = document.createElement("div");
+  div.textContent = str || "";
+  return div.innerHTML;
 }
 
 function showMessage(el, text, type) {
