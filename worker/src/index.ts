@@ -22,6 +22,7 @@
 //   GET    /api/admin/dealers               — lista todos os concessionários
 //   PATCH  /api/admin/dealers/:id           — edita um concessionário (nome, telefone, email, verified)
 //   DELETE /api/admin/dealers/:id           — elimina um concessionário e as suas peças
+//   POST   /api/admin/dealers/:id/resend-confirmation — reenvia código de confirmação de email
 //   GET    /api/admin/listings              — lista todas as peças (qualquer estado)
 //   PATCH  /api/admin/listings/:id          — edita qualquer peça
 //   DELETE /api/admin/listings/:id          — elimina qualquer peça
@@ -141,8 +142,8 @@ export default {
         .prepare(
           `INSERT INTO dealers
             (company_name, contact_name, phone, phone_normalized, email, email_confirmed,
-             address, postal_code, city, official_dealer_id, verified, verification_method)
-           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
+             address, postal_code, city, official_dealer_id, verified, verified_at, verification_method)
+           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           body.companyName,
@@ -155,6 +156,7 @@ export default {
           body.city || null,
           verification.officialDealerId,
           verification.verified ? 1 : 0,
+          verification.verified ? new Date().toISOString() : null,
           verification.method
         )
         .run();
@@ -546,7 +548,7 @@ export default {
       const rows = await env.DB
         .prepare(
           `SELECT id, company_name, contact_name, phone, email, email_confirmed,
-                  city, postal_code, verified, verification_method, created_at, last_login_at
+                  city, postal_code, verified, verified_at, verification_method, created_at, last_login_at
            FROM dealers ORDER BY created_at DESC`
         )
         .all();
@@ -572,7 +574,14 @@ export default {
       if (typeof body.email === "string") { fields.push("email = ?"); values.push(body.email); }
       if (typeof body.city === "string") { fields.push("city = ?"); values.push(body.city); }
       if (typeof body.postalCode === "string") { fields.push("postal_code = ?"); values.push(body.postalCode); }
-      if (typeof body.verified === "boolean") { fields.push("verified = ?"); values.push(body.verified ? 1 : 0); }
+      if (typeof body.verified === "boolean") {
+        fields.push("verified = ?");
+        values.push(body.verified ? 1 : 0);
+        // Só regista a data quando passa a verificado, nunca apaga uma
+        // data já existente se o admin desmarcar por engano e voltar
+        // a marcar -- mantém o histórico da primeira verificação.
+        if (body.verified) { fields.push("verified_at = COALESCE(verified_at, ?)"); values.push(new Date().toISOString()); }
+      }
       if (typeof body.emailConfirmed === "boolean") { fields.push("email_confirmed = ?"); values.push(body.emailConfirmed ? 1 : 0); }
 
       if (fields.length === 0) return json({ error: "Nada para atualizar." }, { status: 400 });
@@ -589,6 +598,28 @@ export default {
       await env.DB.prepare("DELETE FROM reference_alerts WHERE dealer_id = ?").bind(dealerId).run();
       await env.DB.prepare("DELETE FROM dealers WHERE id = ?").bind(dealerId).run();
       return json({ message: "Concessionário e respetivas peças eliminados." });
+    }
+
+    // ---------- reenviar código de confirmação de email ----------
+    const resendMatch = path.match(/^\/api\/admin\/dealers\/(\d+)\/resend-confirmation$/);
+    if (resendMatch && request.method === "POST") {
+      const dealerId = Number(resendMatch[1]);
+
+      const dealer = await env.DB
+        .prepare("SELECT id, email_confirmed FROM dealers WHERE id = ?")
+        .bind(dealerId)
+        .first<{ id: number; email_confirmed: number }>();
+
+      if (!dealer) return json({ error: "Concessionário não encontrado." }, { status: 404 });
+      if (dealer.email_confirmed) {
+        return json({ error: "Este concessionário já tem o email confirmado." }, { status: 400 });
+      }
+
+      const code = await createLoginCode(env.DB, dealer.id);
+
+      // NOTA DE IMPLEMENTAÇÃO: falta ligar a um serviço real de email
+      // (ex: Resend) — mesma limitação do fluxo normal de registo.
+      return json({ message: "Novo código gerado.", devCode: code });
     }
 
     // ---------- listar todas as peças (qualquer estado) ----------

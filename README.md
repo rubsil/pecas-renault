@@ -129,6 +129,10 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
       painel de admin sem ninguém o usar). Esta migração só é
       necessária se por acaso já tiveres alguma peça marcada como
       `reserved`; caso contrário é inofensiva de qualquer forma.
+- [ ] **Aplicar a migração `worker/migrations/0004_dealer_verified_at.sql`**
+      na D1 — adiciona a coluna `verified_at`, usada pelo painel de
+      admin para mostrar a data de verificação de cada concessionário.
+      Sem isto, essa coluna aparece sempre vazia.
 - [x] **Definir o secret `ADMIN_PASSWORD`** no Worker, para poderes
       entrar no painel de administrador (`docs/admin.html`). **Usa
       `wrangler secret put ADMIN_PASSWORD`** (a partir da pasta
@@ -173,9 +177,12 @@ só quem souber o URL (e a password) consegue entrar.
 - **Estatísticas** (topo da página): total de concessionários,
   verificados, pendentes, peças ativas, publicadas nos últimos 7 dias.
 - **Concessionários**: editar nome/telefone/email/cidade, marcar como
-  verificado manualmente, eliminar conta (e as suas peças).
+  verificado manualmente, eliminar conta (e as suas peças), ver data
+  de registo e de verificação, reenviar código de confirmação de
+  email a quem ficou preso nesse passo.
 - **Peças**: editar referência/descrição/quantidade/estado, eliminar
-  qualquer peça de qualquer concessionário.
+  qualquer peça de qualquer concessionário, filtrar por concessionário,
+  ver data de publicação/última atualização.
 - **Configurações**: definir ou remover a password de registo. Se
   definida, o registo passa a exigir esse código; se vazia, qualquer
   concessionário da lista oficial pode registar-se livremente.

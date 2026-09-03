@@ -90,6 +90,11 @@
   .btn-mini.delete { border-color: var(--danger); color: var(--danger); }
   .btn-mini.delete:hover { background: var(--danger-soft); }
   .btn-mini.verify { border-color: var(--accent); color: var(--accent-text); }
+  .btn-mini.resend { border-color: var(--warn); color: var(--warn); }
+  .btn-mini.resend:hover { background: var(--warn-soft); }
+
+  .dates-cell { font-size: 0.75rem; color: var(--ink-faint); white-space: nowrap; }
+  .badge-note { font-size: 0.7rem; color: var(--warn); margin-top: 0.2rem; }
 
   .settings-box {
     background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
@@ -104,6 +109,12 @@
   .settings-box button { padding: 0.6rem 1.2rem; font-weight: 700; background: var(--ink); color: var(--paper); border: none; border-radius: var(--radius); cursor: pointer; }
 
   .status-line { text-align: center; color: var(--ink-faint); padding: 2rem 0; font-size: 0.9rem; }
+
+  .listings-filter { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; font-size: 0.85rem; }
+  .listings-filter select {
+    padding: 0.4rem 0.6rem; border: 1px solid var(--line); border-radius: var(--radius);
+    font-size: 0.85rem; font-family: var(--sans); background: var(--paper-raised); color: var(--ink);
+  }
   .toast {
     position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
     background: var(--ink); color: var(--paper); padding: 0.6rem 1.2rem; border-radius: var(--radius);
@@ -146,6 +157,12 @@
     </div>
 
     <div class="panel" id="panel-listings">
+      <div class="listings-filter">
+        <label for="dealer-filter">Concessionário:</label>
+        <select id="dealer-filter">
+          <option value="">Todos</option>
+        </select>
+      </div>
       <div id="listings-area"><div class="status-line">A carregar…</div></div>
     </div>
 
@@ -299,6 +316,17 @@ async function loadDealers() {
   }
 }
 
+function formatDate(iso) {
+  if (!iso) return "—";
+  // A D1 grava datetime('now') como "YYYY-MM-DD HH:MM:SS" (sem T nem Z),
+  // mas verified_at é gravado como ISO completo (new Date().toISOString(),
+  // já com T e Z). Trata os dois formatos sem duplicar o Z.
+  const normalized = iso.includes("T") ? iso : iso.replace(" ", "T") + "Z";
+  const d = new Date(normalized);
+  if (isNaN(d)) return "—";
+  return d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 function renderDealers(dealers) {
   const area = document.getElementById("dealers-area");
   if (dealers.length === 0) {
@@ -314,11 +342,17 @@ function renderDealers(dealers) {
       <td><input class="editable" data-field="city" value="${escapeAttr(d.city || "")}" /></td>
       <td>
         ${d.verified ? '<span class="badge ok">verificado</span>' : '<span class="badge pending">pendente</span>'}
+        ${!d.email_confirmed ? '<div class="badge-note">email por confirmar</div>' : ""}
+      </td>
+      <td class="dates-cell">
+        <div>registo: ${formatDate(d.created_at)}</div>
+        <div>verificação: ${formatDate(d.verified_at)}</div>
       </td>
       <td>
         <div class="row-actions">
           <button class="btn-mini save" data-action="save-dealer" data-id="${d.id}">Guardar</button>
           ${!d.verified ? `<button class="btn-mini verify" data-action="verify-dealer" data-id="${d.id}">Verificar</button>` : ""}
+          ${!d.email_confirmed ? `<button class="btn-mini resend" data-action="resend-confirmation" data-id="${d.id}">Reenviar código</button>` : ""}
           <button class="btn-mini delete" data-action="delete-dealer" data-id="${d.id}">Eliminar</button>
         </div>
       </td>
@@ -328,7 +362,7 @@ function renderDealers(dealers) {
   area.innerHTML = `
     <table>
       <thead>
-        <tr><th>Empresa</th><th>Telefone</th><th>Email</th><th>Cidade</th><th>Estado</th><th></th></tr>
+        <tr><th>Empresa</th><th>Telefone</th><th>Email</th><th>Cidade</th><th>Estado</th><th>Datas</th><th></th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
@@ -342,6 +376,9 @@ function renderDealers(dealers) {
   });
   area.querySelectorAll('[data-action="delete-dealer"]').forEach(btn => {
     btn.addEventListener("click", () => deleteDealer(Number(btn.dataset.id)));
+  });
+  area.querySelectorAll('[data-action="resend-confirmation"]').forEach(btn => {
+    btn.addEventListener("click", () => resendConfirmation(Number(btn.dataset.id)));
   });
 }
 
@@ -368,7 +405,19 @@ async function deleteDealer(id) {
   loadDealers();
 }
 
+async function resendConfirmation(id) {
+  const res = await adminFetch(`/api/admin/dealers/${id}/resend-confirmation`, { method: "POST" });
+  const data = await res.json();
+  if (data.devCode) {
+    showToast(`Novo código gerado: ${data.devCode}`);
+  } else {
+    showToast("Código de confirmação reenviado.");
+  }
+}
+
 // ---------- peças ----------
+let allListingsCache = [];
+
 async function loadListings() {
   const area = document.getElementById("listings-area");
   area.innerHTML = '<div class="status-line">A carregar…</div>';
@@ -376,16 +425,45 @@ async function loadListings() {
   try {
     const res = await adminFetch("/api/admin/listings");
     const data = await res.json();
-    renderListings(data.results || []);
+    allListingsCache = data.results || [];
+    populateDealerFilter();
+    applyListingsFilter();
   } catch (err) {
     area.innerHTML = '<div class="status-line">Erro ao carregar.</div>';
   }
 }
 
+function populateDealerFilter() {
+  const select = document.getElementById("dealer-filter");
+  const currentValue = select.value;
+
+  // Constrói a lista de concessionários a partir das próprias peças
+  // (não precisa de outro pedido à API), únicos por dealer_id.
+  const seen = new Map();
+  for (const l of allListingsCache) {
+    if (!seen.has(l.dealer_id)) seen.set(l.dealer_id, l.company_name);
+  }
+  const dealers = [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+
+  select.innerHTML = '<option value="">Todos</option>' +
+    dealers.map(([id, name]) => `<option value="${id}">${escapeAttr(name)}</option>`).join("");
+  select.value = currentValue;
+}
+
+function applyListingsFilter() {
+  const dealerId = document.getElementById("dealer-filter").value;
+  const filtered = dealerId
+    ? allListingsCache.filter(l => String(l.dealer_id) === dealerId)
+    : allListingsCache;
+  renderListings(filtered);
+}
+
+document.getElementById("dealer-filter").addEventListener("change", applyListingsFilter);
+
 function renderListings(listings) {
   const area = document.getElementById("listings-area");
   if (listings.length === 0) {
-    area.innerHTML = '<div class="status-line">Nenhuma peça publicada ainda.</div>';
+    area.innerHTML = '<div class="status-line">Nenhuma peça encontrada.</div>';
     return;
   }
 
@@ -402,6 +480,10 @@ function renderListings(listings) {
         </select>
       </td>
       <td>${escapeAttr(l.company_name)}</td>
+      <td class="dates-cell">
+        <div>publicada: ${formatDate(l.created_at)}</div>
+        ${l.updated_at && l.updated_at !== l.created_at ? `<div>atualizada: ${formatDate(l.updated_at)}</div>` : ""}
+      </td>
       <td>
         <div class="row-actions">
           <button class="btn-mini save" data-action="save-listing" data-id="${l.id}">Guardar</button>
@@ -414,7 +496,7 @@ function renderListings(listings) {
   area.innerHTML = `
     <table>
       <thead>
-        <tr><th>Referência</th><th>Descrição</th><th>Qtd.</th><th>Estado</th><th>Concessionário</th><th></th></tr>
+        <tr><th>Referência</th><th>Descrição</th><th>Qtd.</th><th>Estado</th><th>Concessionário</th><th>Datas</th><th></th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>

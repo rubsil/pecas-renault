@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS dealers (
   lon REAL,
   official_dealer_id INTEGER REFERENCES official_dealers(id),  -- NULL se não cruzou automaticamente
   verified INTEGER DEFAULT 0,               -- 0 = pendente, 1 = verificado
+  verified_at TEXT,                         -- quando ficou verificado (NULL se pendente)
   verification_method TEXT,                 -- 'auto_match' | 'manual'
   login_token TEXT,                         -- token atual para magic link (rotativo)
   login_token_expires_at TEXT,
