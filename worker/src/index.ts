@@ -294,7 +294,7 @@ export default {
         .prepare(
           `SELECT
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
-             d.company_name, d.phone, d.city, d.postal_code, d.verified
+             d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            WHERE pl.reference_normalized LIKE ? AND pl.status = 'active'

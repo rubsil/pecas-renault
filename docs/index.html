@@ -366,6 +366,7 @@ async function runSearch() {
           ${badge}
           <span>${escapeHtml(r.city || "")}</span>
           ${r.phone ? `<a href="tel:${phoneDigits}">${escapeHtml(r.phone)}</a>` : ""}
+          ${r.email ? `<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>` : ""}
         </div>
       `;
       list.appendChild(card);
