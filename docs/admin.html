@@ -190,16 +190,32 @@ async function adminFetch(path, options = {}) {
 document.getElementById("btn-admin-login").addEventListener("click", async () => {
   const input = document.getElementById("admin-password-input");
   adminPassword = input.value;
+  const errorBox = document.getElementById("login-error");
 
   try {
-    const res = await adminFetch("/api/admin/dealers");
-    if (!res.ok) throw new Error();
+    const res = await fetch(`${API_BASE}/api/admin/dealers`, {
+      headers: { "x-admin-password": adminPassword },
+    });
+
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try {
+        const data = await res.json();
+        if (data?.error) detail = data.error;
+      } catch (_) { /* corpo não era JSON, mantém o status */ }
+      errorBox.textContent = detail;
+      errorBox.classList.add("show");
+      return;
+    }
+
     sessionStorage.setItem("admin_password", adminPassword);
+    errorBox.classList.remove("show");
     document.getElementById("login-view").style.display = "none";
     document.getElementById("admin-view").style.display = "block";
     loadDealers();
   } catch (err) {
-    document.getElementById("login-error").classList.add("show");
+    errorBox.textContent = "Erro de ligação: " + err.message;
+    errorBox.classList.add("show");
   }
 });
 
