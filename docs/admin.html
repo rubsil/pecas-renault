@@ -76,7 +76,7 @@
   .editable:hover { border-color: var(--line); }
   .editable:focus { border-color: var(--accent); outline: none; background: var(--paper-raised); }
 
-  .badge { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  .badge { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 3px; white-space: nowrap; display: inline-block; }
   .badge.ok { background: var(--accent-soft); color: var(--accent-text); }
   .badge.pending { background: var(--warn-soft); color: var(--warn); }
   .badge.none { background: var(--paper); color: var(--ink-faint); border: 1px solid var(--line); }
@@ -258,10 +258,12 @@
 
     <div class="panel" id="panel-listings">
       <div class="listings-filter">
-        <label for="dealer-filter">Concessionário:</label>
-        <select id="dealer-filter">
-          <option value="">Todos</option>
-        </select>
+        <label for="dealer-filter-input">Concessionário:</label>
+        <div class="autocomplete-wrap" style="max-width: 320px;">
+          <input type="text" id="dealer-filter-input" placeholder="Todos — escreve para filtrar" autocomplete="off" />
+          <div class="autocomplete-list" id="dealer-filter-suggestions"></div>
+        </div>
+        <button class="btn-mini" id="btn-clear-dealer-filter" style="display: none;">✕ limpar</button>
       </div>
       <div id="listings-area"><div class="status-line">A carregar…</div></div>
     </div>
@@ -690,6 +692,8 @@ function renderOfficialDealers(list) {
 
 // ---------- peças ----------
 let allListingsCache = [];
+let dealerFilterOptions = []; // [{id, name}], derivado das próprias peças
+let selectedDealerFilterId = null;
 
 async function loadListings() {
   const area = document.getElementById("listings-area");
@@ -699,39 +703,84 @@ async function loadListings() {
     const res = await adminFetch("/api/admin/listings");
     const data = await res.json();
     allListingsCache = data.results || [];
-    populateDealerFilter();
+    buildDealerFilterOptions();
     applyListingsFilter();
   } catch (err) {
     area.innerHTML = '<div class="status-line">Erro ao carregar.</div>';
   }
 }
 
-function populateDealerFilter() {
-  const select = document.getElementById("dealer-filter");
-  const currentValue = select.value;
-
+function buildDealerFilterOptions() {
   // Constrói a lista de concessionários a partir das próprias peças
   // (não precisa de outro pedido à API), únicos por dealer_id.
   const seen = new Map();
   for (const l of allListingsCache) {
     if (!seen.has(l.dealer_id)) seen.set(l.dealer_id, l.company_name);
   }
-  const dealers = [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-
-  select.innerHTML = '<option value="">Todos</option>' +
-    dealers.map(([id, name]) => `<option value="${id}">${escapeAttr(name)}</option>`).join("");
-  select.value = currentValue;
+  dealerFilterOptions = [...seen.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function applyListingsFilter() {
-  const dealerId = document.getElementById("dealer-filter").value;
-  const filtered = dealerId
-    ? allListingsCache.filter(l => String(l.dealer_id) === dealerId)
+  const filtered = selectedDealerFilterId
+    ? allListingsCache.filter(l => String(l.dealer_id) === String(selectedDealerFilterId))
     : allListingsCache;
   renderListings(filtered);
 }
 
-document.getElementById("dealer-filter").addEventListener("change", applyListingsFilter);
+// Autocomplete do filtro: escreve para filtrar em vez de percorrer um
+// dropdown longo -- escala bem mesmo com muitos concessionários.
+const dealerFilterInput = document.getElementById("dealer-filter-input");
+const dealerFilterSuggestions = document.getElementById("dealer-filter-suggestions");
+const btnClearDealerFilter = document.getElementById("btn-clear-dealer-filter");
+
+dealerFilterInput.addEventListener("input", () => {
+  const q = dealerFilterInput.value.trim().toLowerCase();
+  if (q.length === 0) {
+    dealerFilterSuggestions.classList.remove("show");
+    return;
+  }
+  const matches = dealerFilterOptions.filter(o => o.name.toLowerCase().includes(q)).slice(0, 8);
+  renderDealerFilterSuggestions(matches);
+});
+
+function renderDealerFilterSuggestions(matches) {
+  if (matches.length === 0) {
+    dealerFilterSuggestions.classList.remove("show");
+    dealerFilterSuggestions.innerHTML = "";
+    return;
+  }
+  dealerFilterSuggestions.innerHTML = matches.map(o => `
+    <div class="autocomplete-item" data-id="${o.id}" data-name="${escapeAttr(o.name)}">
+      <div class="ac-name">${escapeAttr(o.name)}</div>
+    </div>
+  `).join("");
+  dealerFilterSuggestions.classList.add("show");
+
+  dealerFilterSuggestions.querySelectorAll(".autocomplete-item").forEach(item => {
+    item.addEventListener("click", () => {
+      selectedDealerFilterId = item.dataset.id;
+      dealerFilterInput.value = item.dataset.name;
+      dealerFilterSuggestions.classList.remove("show");
+      btnClearDealerFilter.style.display = "";
+      applyListingsFilter();
+    });
+  });
+}
+
+btnClearDealerFilter.addEventListener("click", () => {
+  selectedDealerFilterId = null;
+  dealerFilterInput.value = "";
+  btnClearDealerFilter.style.display = "none";
+  applyListingsFilter();
+});
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#dealer-filter-suggestions") && e.target !== dealerFilterInput) {
+    dealerFilterSuggestions.classList.remove("show");
+  }
+});
 
 function renderListings(listings) {
   const area = document.getElementById("listings-area");
