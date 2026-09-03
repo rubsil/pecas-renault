@@ -78,6 +78,13 @@
     flex: 1; min-width: 140px; border: none; padding: 0.3rem 0; background: transparent;
   }
   #alt-references-input:focus { outline: none; }
+  .tag-add-btn {
+    flex-shrink: 0; padding: 0.4rem 0.7rem; font-size: 0.8rem; font-weight: 700;
+    background: var(--ink); color: var(--paper); border: none; border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .tag-add-btn:hover { background: var(--accent); }
+  .tag-add-btn:active { background: var(--accent-text); }
 
   .row-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
@@ -139,9 +146,10 @@
     <label for="alt-references-input">Referências de substituição</label>
     <div class="tags-input-wrap" id="tags-wrap">
       <div class="tags-list" id="tags-list"></div>
-      <input type="text" id="alt-references-input" placeholder="escreve uma referência e Enter" />
+      <input type="text" id="alt-references-input" placeholder="escreve uma referência" />
+      <button type="button" class="tag-add-btn" id="alt-references-add-btn">+ Adicionar</button>
     </div>
-    <div class="hint" style="margin-top: 0.3rem;">Insere aqui as referências que sabes que são de substituição desta peça, para facilitar a pesquisa e tornar mais eficaz encontrarem a peça. Escreve uma referência e carrega Enter — não precisas de vírgulas.</div>
+    <div class="hint" style="margin-top: 0.3rem;">Insere aqui as referências que sabes que são de substituição desta peça, para facilitar a pesquisa e tornar mais eficaz encontrarem a peça. Escreve uma referência e carrega em "+ Adicionar" (ou Enter, num teclado físico).</div>
 
     <label for="description">Descrição</label>
     <input type="text" id="description" placeholder="ex: Filtro de ar Clio IV" />
@@ -194,11 +202,16 @@ function createTagsManager(inputId, listId) {
     render();
   }
 
+  function addFromInput() {
+    addTag(input.value);
+    input.value = "";
+    input.focus(); // mantém o foco no campo -- útil sobretudo ao clicar no botão
+  }
+
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === "," || e.key === " ") {
+    if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
-      addTag(input.value);
-      input.value = "";
+      addFromInput();
     } else if (e.key === "Backspace" && input.value === "" && tags.length > 0) {
       // Apagar a última tag ao carregar Backspace num input já vazio --
       // gesto comum neste tipo de componente, evita ter de clicar no ✕.
@@ -220,6 +233,7 @@ function createTagsManager(inputId, listId) {
   return {
     getTags: () => [...tags],
     setTags: (newTags) => { tags = [...newTags]; render(); },
+    addFromInput,
   };
 }
 
@@ -230,6 +244,7 @@ function escapeHtmlLocal2(str) {
 }
 
 const altRefsManager = createTagsManager("alt-references-input", "tags-list");
+document.getElementById("alt-references-add-btn").addEventListener("click", () => altRefsManager.addFromInput());
 
 async function init() {
   if (!token) return;

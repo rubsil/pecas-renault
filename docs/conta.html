@@ -172,6 +172,13 @@
     flex: 1; min-width: 120px; border: none !important; padding: 0.2rem 0 !important; background: transparent !important;
   }
   .edit-alt-refs-input:focus { outline: none; }
+  .tag-add-btn {
+    flex-shrink: 0; padding: 0.35rem 0.6rem; font-size: 0.78rem; font-weight: 700;
+    background: var(--ink); color: var(--paper); border: none; border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .tag-add-btn:hover { background: var(--accent); }
+  .tag-add-btn:active { background: var(--accent-text); }
 
   .listing-edit-actions { display: flex; gap: 0.5rem; }
   .edit-save-btn, .edit-cancel-btn {
@@ -347,11 +354,16 @@ function createTagsManager(inputId, listId) {
     render();
   }
 
+  function addFromInput() {
+    addTag(input.value);
+    input.value = "";
+    input.focus();
+  }
+
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === "," || e.key === " ") {
+    if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
-      addTag(input.value);
-      input.value = "";
+      addFromInput();
     } else if (e.key === "Backspace" && input.value === "" && tags.length > 0) {
       tags.pop();
       render();
@@ -370,6 +382,7 @@ function createTagsManager(inputId, listId) {
   return {
     getTags: () => [...tags],
     setTags: (newTags) => { tags = [...newTags]; render(); },
+    addFromInput,
   };
 }
 
@@ -719,7 +732,8 @@ function renderMyListings(listings, token) {
           <label class="edit-form-label">Referências de substituição</label>
           <div class="tags-input-wrap" id="edit-tags-wrap-${l.id}">
             <div class="tags-list" id="edit-tags-list-${l.id}"></div>
-            <input type="text" class="edit-alt-refs-input" id="edit-alt-refs-input-${l.id}" placeholder="escreve uma referência e Enter" />
+            <input type="text" class="edit-alt-refs-input" id="edit-alt-refs-input-${l.id}" placeholder="escreve uma referência" />
+            <button type="button" class="tag-add-btn" data-add-tag-for="${l.id}">+ Adicionar</button>
           </div>
           <textarea class="edit-notes" rows="2" placeholder="Notas (ex: embalagem selada)">${escapeHtmlLocal(l.notes || "")}</textarea>
           <div class="listing-edit-actions">
@@ -738,6 +752,13 @@ function renderMyListings(listings, token) {
     manager.setTags(existingAltRefs);
     altRefsManagers[l.id] = manager;
   }
+
+  container.querySelectorAll("[data-add-tag-for]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mgr = altRefsManagers[btn.dataset.addTagFor];
+      if (mgr) mgr.addFromInput();
+    });
+  });
 
   container.querySelectorAll("button[data-action]").forEach(btn => {
     btn.addEventListener("click", () => handleListingAction(btn.dataset.action, Number(btn.dataset.id), token));
