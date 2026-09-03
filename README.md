@@ -108,15 +108,37 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
 
 ## O que falta antes de mandares o email aos concessionários
 
-- [ ] Completar a lista oficial com as páginas 2-4 (ver passo 3 acima)
-- [ ] Ligar o envio de código de login a um serviço real de SMS ou email
-      (ver `NOTA DE IMPLEMENTAÇÃO` em `worker/src/index.ts`, rota `/api/auth/request-code`).
-      Sem isto, o código aparece só na resposta da API (`devCode`) — bom para testar,
-      não pronto para produção.
-- [ ] Publicar 15-20 referências tuas próprias, para a plataforma não parecer vazia
-      ao primeiro concessionário que entra.
-- [ ] Rever o texto do email de apresentação (mencionado nas conversas anteriores)
-      e incluir o link direto para `conta.html`.
+- [x] Repositório no ar, GitHub Pages ligado (`docs/`), Worker deployado
+      via Workers Builds (deploy automático a cada push)
+- [x] Lista oficial completa (97 concessionários) importada para a D1
+- [x] Validação automática por telefone + desempate por código postal
+      (cadeias como Carby/Santogal)
+- [x] Fluxo de registo → confirmação de email → login testado de ponta a ponta
+- [ ] **Aplicar a migração `worker/migrations/0001_email_confirmation.sql`**
+      na D1 (consola do dashboard Cloudflare, tal como o schema inicial —
+      ver secção 2 acima). Sem isto, o registo com email obrigatório
+      não funciona, porque a coluna `email_confirmed` ainda não existe.
+- [ ] Ligar o envio do código de confirmação a um serviço real de email
+      (ver `NOTA DE IMPLEMENTAÇÃO` em `worker/src/index.ts`). Sem isto,
+      o código aparece só na resposta da API (`devCode`) — bom para
+      testar, não pronto para produção.
+- [ ] Publicar 15-20 referências tuas próprias, para a plataforma não parecer
+      vazia ao primeiro concessionário que entra.
+- [ ] Rever o texto do email de apresentação e incluir o link direto para
+      `conta.html`.
+
+## Correções manuais (email mal escrito, etc.)
+
+Como o volume de concessionários é pequeno, correções pontuais fazem-se
+diretamente na consola D1 do dashboard Cloudflare. Exemplo, para corrigir
+um email:
+
+```sql
+UPDATE dealers SET email = 'email-correto@exemplo.pt', email_confirmed = 0 WHERE phone_normalized = '292240200';
+```
+
+Colocar `email_confirmed = 0` obriga a nova confirmação, para garantir
+que o email corrigido é mesmo válido antes de voltar a servir para login.
 
 ## Notas de design
 
@@ -135,8 +157,18 @@ Depois, nas definições do repositório GitHub → Pages → escolher a pasta `
   nome funcionar melhor (caso de telefone não bater), convém escrever o
   nome tal como aparece em
   https://www.renault.pt/concessionarios/lista-concessionarios.html.
-- Login sem password: pede-se um código de 6 dígitos por telefone/email,
-  válido 15 minutos, trocado por um token de sessão de 30 dias.
+- Login sem password: pede-se um código de 6 dígitos, trocado por um
+  token de sessão de 30 dias.
+- **Telefone vs. email**: o telefone é a identidade forte (validado
+  contra a lista oficial da Renault) e nunca muda depois do registo.
+  O email é obrigatório desde o início — serve para login e como
+  contacto por escrito entre concessionários — mas só fica ativo
+  depois de confirmado uma vez, logo a seguir ao registo (evita que
+  um erro de digitação no email deixe alguém sem conseguir entrar
+  antes sequer de a conta funcionar). Se o email ficar mal escrito,
+  a correção é manual, diretamente na D1 — dado o volume pequeno de
+  concessionários, não vale a pena um fluxo de recuperação automático
+  para isto (ver `worker/migrations/0001_email_confirmation.sql`).
 - A pesquisa de peças é pública (não exige login) — só publicar exige conta.
   Isto reduz fricção para quem só quer verificar se algo existe antes de
   decidir registar-se.

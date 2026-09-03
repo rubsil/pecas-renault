@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS dealers (
   contact_name TEXT,                        -- pessoa responsável (ex: chefe de peças)
   phone TEXT NOT NULL,
   phone_normalized TEXT NOT NULL,
-  email TEXT,
+  email TEXT NOT NULL,                      -- obrigatório: contacto por escrito + login
+  email_confirmed INTEGER DEFAULT 0,        -- 0 = à espera de confirmação no registo, 1 = confirmado
   address TEXT,
   postal_code TEXT,
   city TEXT,

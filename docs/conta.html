@@ -159,8 +159,9 @@
       <label for="reg-phone">Telefone</label>
       <input type="tel" id="reg-phone" placeholder="21 234 5678" />
 
-      <label for="reg-email">Email (opcional)</label>
-      <input type="email" id="reg-email" placeholder="pecas@exemplo.pt" />
+      <label for="reg-email">Email</label>
+      <input type="email" id="reg-email" placeholder="pecas@exemplo.pt" required />
+      <div class="hint" style="margin-top: 0.3rem;">Usado para entrar na conta e como contacto por escrito para outros concessionários.</div>
 
       <label for="reg-city">Localidade</label>
       <input type="text" id="reg-city" placeholder="ex: Sintra" />
@@ -172,6 +173,17 @@
 
       <button class="submit" id="btn-register">Criar conta</button>
       <div class="message" id="register-message"></div>
+    </div>
+
+    <div class="panel" id="panel-confirm-email">
+      <p style="font-size: 0.9rem; color: var(--ink-soft); margin-top: 0;">
+        Falta só confirmar o teu email. Enviámos um código para lá — introduz abaixo.
+      </p>
+      <label for="confirm-code">Código de confirmação</label>
+      <input type="text" id="confirm-code" class="code-input" maxlength="6" placeholder="000000" />
+      <div class="hint">Se não encontrares o email, verifica o spam. Se o email estiver mal escrito, envia um email para rubensilva.92@gmail.com com o nome da empresa e o telefone registado, para corrigirmos.</div>
+      <button class="submit" id="btn-confirm-email">Confirmar</button>
+      <div class="message" id="confirm-message"></div>
     </div>
   </div>
 
@@ -221,6 +233,10 @@ document.getElementById("btn-register").addEventListener("click", async () => {
     showMessage(msg, "Nome da empresa e telefone são obrigatórios.", "error");
     return;
   }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showMessage(msg, "Indica um email válido.", "error");
+    return;
+  }
 
   try {
     const res = await fetch(`${API_BASE}/api/dealers/register`, {
@@ -235,13 +251,56 @@ document.getElementById("btn-register").addEventListener("click", async () => {
       return;
     }
 
-    showMessage(msg, data.message, "success");
+    // Regista feito — falta confirmar o email antes de poder entrar.
+    pendingDealerId = data.dealerId;
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    document.getElementById("panel-confirm-email").classList.add("active");
+
+    const confirmMsg = document.getElementById("confirm-message");
+    showMessage(
+      confirmMsg,
+      data.devCode ? `${data.message} Código de teste: ${data.devCode}` : data.message,
+      "success"
+    );
+  } catch (err) {
+    showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
+  }
+});
+
+// ---------- confirmar email (logo a seguir ao registo) ----------
+document.getElementById("btn-confirm-email").addEventListener("click", async () => {
+  const code = document.getElementById("confirm-code").value.trim();
+  const msg = document.getElementById("confirm-message");
+
+  if (!code || !pendingDealerId) {
+    showMessage(msg, "Introduz o código recebido por email.", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/dealers/confirm-email`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dealerId: pendingDealerId, code }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Código inválido.", "error");
+      return;
+    }
+
+    localStorage.setItem("pt_session", data.sessionToken);
+    loadDashboard();
   } catch (err) {
     showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
   }
 });
 
 // ---------- login: pedir código ----------
+let loginNeedsEmailConfirmation = false;
+
 document.getElementById("btn-request-code").addEventListener("click", async () => {
   const phone = document.getElementById("login-phone").value.trim();
   const msg = document.getElementById("login-message");
@@ -265,6 +324,7 @@ document.getElementById("btn-request-code").addEventListener("click", async () =
     }
 
     pendingDealerId = data.dealerId;
+    loginNeedsEmailConfirmation = !!data.needsEmailConfirmation;
     document.getElementById("login-step-phone").style.display = "none";
     document.getElementById("login-step-code").style.display = "block";
     showMessage(msg, data.devCode ? `Código de teste: ${data.devCode}` : "Código enviado.", "success");
@@ -280,8 +340,15 @@ document.getElementById("btn-redeem-code").addEventListener("click", async () =>
 
   if (!code || !pendingDealerId) return;
 
+  // Se a conta ainda não tem o email confirmado (ex: alguém que se
+  // registou mas nunca chegou a confirmar), o mesmo código serve para
+  // confirmar o email agora, em vez de um login normal.
+  const endpoint = loginNeedsEmailConfirmation
+    ? `${API_BASE}/api/dealers/confirm-email`
+    : `${API_BASE}/api/auth/redeem-code`;
+
   try {
-    const res = await fetch(`${API_BASE}/api/auth/redeem-code`, {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ dealerId: pendingDealerId, code }),

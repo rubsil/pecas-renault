@@ -67,6 +67,9 @@ export default {
       if (!body?.companyName || !body?.phone) {
         return json({ error: "Nome da empresa e telefone são obrigatórios." }, { status: 400 });
       }
+      if (!body?.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+        return json({ error: "Email válido é obrigatório." }, { status: 400 });
+      }
 
       const phoneNormalized = normalizePhone(body.phone);
       if (phoneNormalized.length < 9) {
@@ -91,16 +94,16 @@ export default {
       const result = await env.DB
         .prepare(
           `INSERT INTO dealers
-            (company_name, contact_name, phone, phone_normalized, email, address, postal_code, city,
-             official_dealer_id, verified, verification_method)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (company_name, contact_name, phone, phone_normalized, email, email_confirmed,
+             address, postal_code, city, official_dealer_id, verified, verification_method)
+           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           body.companyName,
           body.contactName || null,
           body.phone,
           phoneNormalized,
-          body.email || null,
+          body.email,
           body.address || null,
           body.postalCode || null,
           body.city || null,
@@ -112,13 +115,48 @@ export default {
 
       const dealerId = result.meta.last_row_id;
 
+      // O email só fica ativo para login depois de confirmado. Gera-se já
+      // o primeiro código de confirmação, para o frontend pedir logo a
+      // seguir ao registo — evita um passo extra de "pedir código".
+      const confirmationCode = await createLoginCode(env.DB, dealerId as number);
+
       return json({
         dealerId,
         verified: verification.verified,
+        needsEmailConfirmation: true,
         message: verification.verified
-          ? "Registo confirmado automaticamente contra a lista oficial Renault."
-          : "Registo criado. A tua conta fica pendente de confirmação manual — vamos verificar os teus dados brevemente.",
+          ? "Registo confirmado automaticamente contra a lista oficial Renault. Falta só confirmar o email."
+          : "Registo criado. A tua conta fica pendente de confirmação manual — vamos verificar os teus dados brevemente. Entretanto, confirma o email.",
+        devCode: confirmationCode, // REMOVER quando o envio por email estiver ligado
       });
+    }
+
+    // ---------- confirmar email (primeira vez, logo após o registo) ----------
+    if (path === "/api/dealers/confirm-email" && request.method === "POST") {
+      const body = await request.json<any>().catch(() => null);
+      if (!body?.dealerId || !body?.code) {
+        return json({ error: "dealerId e code são obrigatórios." }, { status: 400 });
+      }
+
+      const dealer = await env.DB
+        .prepare("SELECT login_token, login_token_expires_at FROM dealers WHERE id = ?")
+        .bind(body.dealerId)
+        .first<{ login_token: string | null; login_token_expires_at: string | null }>();
+
+      if (!dealer || dealer.login_token !== String(body.code)) {
+        return json({ error: "Código inválido." }, { status: 401 });
+      }
+      if (!dealer.login_token_expires_at || new Date(dealer.login_token_expires_at) < new Date()) {
+        return json({ error: "Código expirado. Pede um novo em 'Entrar'." }, { status: 401 });
+      }
+
+      await env.DB
+        .prepare("UPDATE dealers SET email_confirmed = 1 WHERE id = ?")
+        .bind(body.dealerId)
+        .run();
+
+      const sessionToken = await redeemLoginCode(env.DB, body.dealerId, String(body.code));
+      return json({ message: "Email confirmado.", sessionToken });
     }
 
     // ---------- pedir código de login ----------
@@ -128,9 +166,9 @@ export default {
 
       const phoneNormalized = normalizePhone(body.phone);
       const dealer = await env.DB
-        .prepare("SELECT id FROM dealers WHERE phone_normalized = ?")
+        .prepare("SELECT id, email_confirmed FROM dealers WHERE phone_normalized = ?")
         .bind(phoneNormalized)
-        .first<{ id: number }>();
+        .first<{ id: number; email_confirmed: number }>();
 
       if (!dealer) {
         return json({ error: "Não encontrámos nenhuma conta com este telefone." }, { status: 404 });
@@ -138,13 +176,14 @@ export default {
 
       const code = await createLoginCode(env.DB, dealer.id);
 
-      // NOTA DE IMPLEMENTAÇÃO: falta ligar a um serviço real de SMS/email
-      // (ex: Twilio, Resend). Por agora devolve-se o código na resposta
+      // NOTA DE IMPLEMENTAÇÃO: falta ligar a um serviço real de email
+      // (ex: Resend). Por agora devolve-se o código na resposta
       // para testar o fluxo end-to-end sem essa integração.
       return json({
         dealerId: dealer.id,
+        needsEmailConfirmation: !dealer.email_confirmed,
         message: "Código gerado.",
-        devCode: code, // REMOVER quando o envio por SMS/email estiver ligado
+        devCode: code, // REMOVER quando o envio por email estiver ligado
       });
     }
 
