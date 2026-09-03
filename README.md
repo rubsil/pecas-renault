@@ -179,13 +179,16 @@ só quem souber o URL (e a password) consegue entrar.
 
 - **Estatísticas** (topo da página): total de concessionários,
   verificados, pendentes, peças ativas, publicadas nos últimos 7 dias.
+  As tabs "Concessionários" e "Alertas" mostram um badge numérico
+  quando há pendências, visível mesmo sem abrir esse separador.
 - **Concessionários**: editar nome/telefone/email/cidade, marcar como
-  verificado manualmente, eliminar conta (e as suas peças), ver data
-  de registo e de verificação, reenviar código de confirmação de
-  email a quem ficou preso nesse passo, criar conta manualmente
-  já verificada e com email confirmado (sem código nenhum, com
-  autofill do nome a partir da lista oficial) — para quem pediu para
-  ser registado diretamente, sem passar pelo fluxo normal.
+  verificado manualmente, eliminar conta (e as suas peças — o aviso de
+  confirmação diz quantas peças ativas tem, para não eliminares sem
+  perceber o impacto), ver data de registo e de verificação, reenviar
+  código de confirmação de email a quem ficou preso nesse passo, criar
+  conta manualmente já verificada e com email confirmado (sem código
+  nenhum, com autofill do nome a partir da lista oficial). Tabela
+  ordenável por qualquer coluna (clicar no cabeçalho).
 - **Todos os Concessionários**: os 97 concessionários da Renault, cruzados com o
   estado de registo na plataforma — quem já está registado (e se está
   verificado) e quem ainda não apareceu. Filtro rápido para veres só
@@ -196,10 +199,14 @@ só quem souber o URL (e a password) consegue entrar.
   de correção sem mexer em SQL.
 - **Peças**: editar referência/descrição/quantidade/estado, eliminar
   qualquer peça de qualquer concessionário, filtrar por concessionário,
-  ver data de publicação/última atualização.
+  pesquisar por referência/descrição, ordenar por qualquer coluna
+  (mais recentes primeiro por defeito), ver data de publicação/última
+  atualização.
 - **Alertas**: concessionários que pediram para ser avisados quando
-  alguém publicar uma referência que ainda não existe. Dá para veres
-  todos os pedidos pendentes e eliminares os que já não fazem sentido.
+  alguém publicar uma referência que ainda não existe. Mostra
+  automaticamente se já há alguma peça ativa com essa referência
+  (e de quem), para apanhares pedidos já satisfeitos que ninguém
+  reparou. Dá para eliminar os que já não fazem sentido.
 - **Log**: as últimas 200 ações feitas no painel (criar, verificar,
   editar, eliminar), com data e detalhe — rasto de auditoria simples,
   não regista leituras, só escritas.

@@ -63,12 +63,19 @@
     color: var(--ink-faint); border-bottom: 2px solid transparent; margin-bottom: -1px;
   }
   .tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .tab-badge {
+    display: inline-block; min-width: 1.1rem; height: 1.1rem; padding: 0 0.3rem;
+    background: var(--warn); color: white; border-radius: 999px; font-size: 0.68rem;
+    font-weight: 700; text-align: center; line-height: 1.1rem; margin-left: 0.3rem;
+  }
   .panel { display: none; }
   .panel.active { display: block; }
 
   /* ---------- tabela ---------- */
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   th { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 2px solid var(--ink); font-size: 0.78rem; color: var(--ink-soft); }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--ink); }
   td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   tr:hover td { background: var(--accent-soft); }
 
@@ -194,10 +201,10 @@
     <div class="stats-bar" id="stats-bar"></div>
 
     <div class="tabs">
-      <div class="tab active" data-tab="dealers">Concessionários</div>
+      <div class="tab active" data-tab="dealers">Concessionários <span class="tab-badge" id="tab-badge-pending" style="display: none;"></span></div>
       <div class="tab" data-tab="official">Todos os Concessionários</div>
       <div class="tab" data-tab="listings">Peças</div>
-      <div class="tab" data-tab="alerts">Alertas</div>
+      <div class="tab" data-tab="alerts">Alertas <span class="tab-badge" id="tab-badge-alerts" style="display: none;"></span></div>
       <div class="tab" data-tab="log">Log</div>
       <div class="tab" data-tab="settings">Configurações</div>
     </div>
@@ -292,6 +299,8 @@
 
     <div class="panel" id="panel-listings">
       <div class="listings-filter">
+        <label for="listing-search-input">Pesquisar:</label>
+        <input type="text" id="listing-search-input" placeholder="referência ou descrição" style="max-width: 220px;" />
         <label for="dealer-filter-input">Concessionário:</label>
         <div class="autocomplete-wrap" style="max-width: 320px;">
           <input type="text" id="dealer-filter-input" placeholder="Todos — escreve para filtrar" autocomplete="off" />
@@ -461,8 +470,21 @@ async function loadStats() {
         <div class="stat-label">publicadas (7 dias)</div>
       </div>
     `;
+
+    updateTabBadge("tab-badge-pending", s.pendingDealers);
+    updateTabBadge("tab-badge-alerts", s.pendingAlerts);
   } catch (err) {
     bar.innerHTML = "";
+  }
+}
+
+function updateTabBadge(elementId, count) {
+  const el = document.getElementById(elementId);
+  if (count > 0) {
+    el.textContent = count;
+    el.style.display = "";
+  } else {
+    el.style.display = "none";
   }
 }
 
@@ -573,6 +595,8 @@ document.getElementById("btn-create-dealer").addEventListener("click", async () 
   loadDealers();
 });
 
+let dealersCache = [];
+
 async function loadDealers() {
   const area = document.getElementById("dealers-area");
   area.innerHTML = '<div class="status-line">A carregar…</div>';
@@ -580,7 +604,8 @@ async function loadDealers() {
   try {
     const res = await adminFetch("/api/admin/dealers");
     const data = await res.json();
-    renderDealers(data.results || []);
+    dealersCache = data.results || [];
+    renderDealers(dealersCache);
   } catch (err) {
     area.innerHTML = '<div class="status-line">Erro ao carregar.</div>';
   }
@@ -597,6 +622,45 @@ function formatDate(iso) {
   return d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+// ---------- ordenação genérica de tabelas ----------
+// Estado guardado por tabela (chave arbitrária escolhida por quem chama),
+// para cada uma lembrar a sua própria coluna/direção independentemente.
+const sortState = {};
+
+function sortRows(tableKey, rows, defaultField) {
+  const state = sortState[tableKey] || { field: defaultField, dir: 1 };
+  sortState[tableKey] = state;
+
+  const sorted = [...rows].sort((a, b) => {
+    let av = a[state.field];
+    let bv = b[state.field];
+    if (av == null) av = "";
+    if (bv == null) bv = "";
+    if (typeof av === "number" && typeof bv === "number") return (av - bv) * state.dir;
+    return String(av).localeCompare(String(bv)) * state.dir;
+  });
+
+  return sorted;
+}
+
+function setSortField(tableKey, field, reload) {
+  const state = sortState[tableKey] || { field, dir: 1 };
+  if (state.field === field) {
+    state.dir *= -1; // já estava ordenado por este campo -- inverte
+  } else {
+    state.field = field;
+    state.dir = 1;
+  }
+  sortState[tableKey] = state;
+  reload();
+}
+
+function sortArrow(tableKey, field) {
+  const state = sortState[tableKey];
+  if (!state || state.field !== field) return "";
+  return state.dir === 1 ? " ▲" : " ▼";
+}
+
 function renderDealers(dealers) {
   const area = document.getElementById("dealers-area");
   if (dealers.length === 0) {
@@ -604,7 +668,9 @@ function renderDealers(dealers) {
     return;
   }
 
-  const rows = dealers.map(d => `
+  const sorted = sortRows("dealers", dealers, "company_name");
+
+  const rows = sorted.map(d => `
     <tr data-id="${d.id}">
       <td><input class="editable" data-field="companyName" value="${escapeAttr(d.company_name)}" /></td>
       <td><input class="editable" data-field="phone" value="${escapeAttr(d.phone)}" /></td>
@@ -617,13 +683,14 @@ function renderDealers(dealers) {
       <td class="dates-cell">
         <div>registo: ${formatDate(d.created_at)}</div>
         <div>verificação: ${formatDate(d.verified_at)}</div>
+        <div>${d.active_listings_count || 0} peça${d.active_listings_count === 1 ? "" : "s"} ativa${d.active_listings_count === 1 ? "" : "s"}</div>
       </td>
       <td>
         <div class="row-actions">
           <button class="btn-mini save" data-action="save-dealer" data-id="${d.id}">Guardar</button>
           ${!d.verified ? `<button class="btn-mini verify" data-action="verify-dealer" data-id="${d.id}">Verificar</button>` : ""}
           ${!d.email_confirmed ? `<button class="btn-mini resend" data-action="resend-confirmation" data-id="${d.id}">Reenviar código</button>` : ""}
-          <button class="btn-mini delete" data-action="delete-dealer" data-id="${d.id}">Eliminar</button>
+          <button class="btn-mini delete" data-action="delete-dealer" data-id="${d.id}" data-name="${escapeAttr(d.company_name)}" data-count="${d.active_listings_count || 0}">Eliminar</button>
         </div>
       </td>
     </tr>
@@ -632,11 +699,23 @@ function renderDealers(dealers) {
   area.innerHTML = `
     <table>
       <thead>
-        <tr><th>Empresa</th><th>Telefone</th><th>Email</th><th>Cidade</th><th>Estado</th><th>Datas</th><th></th></tr>
+        <tr>
+          <th class="sortable" data-sort-field="company_name">Empresa${sortArrow("dealers", "company_name")}</th>
+          <th class="sortable" data-sort-field="phone">Telefone${sortArrow("dealers", "phone")}</th>
+          <th>Email</th>
+          <th class="sortable" data-sort-field="city">Cidade${sortArrow("dealers", "city")}</th>
+          <th class="sortable" data-sort-field="verified">Estado${sortArrow("dealers", "verified")}</th>
+          <th class="sortable" data-sort-field="created_at">Datas${sortArrow("dealers", "created_at")}</th>
+          <th></th>
+        </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
   `;
+
+  area.querySelectorAll("th.sortable").forEach(th => {
+    th.addEventListener("click", () => setSortField("dealers", th.dataset.sortField, () => renderDealers(dealersCache)));
+  });
 
   area.querySelectorAll('[data-action="save-dealer"]').forEach(btn => {
     btn.addEventListener("click", () => saveDealer(Number(btn.dataset.id)));
@@ -645,7 +724,7 @@ function renderDealers(dealers) {
     btn.addEventListener("click", () => verifyDealer(Number(btn.dataset.id)));
   });
   area.querySelectorAll('[data-action="delete-dealer"]').forEach(btn => {
-    btn.addEventListener("click", () => deleteDealer(Number(btn.dataset.id)));
+    btn.addEventListener("click", () => deleteDealer(Number(btn.dataset.id), btn.dataset.name, Number(btn.dataset.count)));
   });
   area.querySelectorAll('[data-action="resend-confirmation"]').forEach(btn => {
     btn.addEventListener("click", () => resendConfirmation(Number(btn.dataset.id)));
@@ -668,8 +747,11 @@ async function verifyDealer(id) {
   loadDealers();
 }
 
-async function deleteDealer(id) {
-  if (!confirm("Eliminar este concessionário e todas as suas peças publicadas?")) return;
+async function deleteDealer(id, companyName, activeListingsCount) {
+  const extra = activeListingsCount > 0
+    ? ` Tem ${activeListingsCount} peça${activeListingsCount === 1 ? "" : "s"} publicada${activeListingsCount === 1 ? "" : "s"} — ${activeListingsCount === 1 ? "vai" : "vão"} ser eliminada${activeListingsCount === 1 ? "" : "s"} também.`
+    : "";
+  if (!confirm(`Eliminar "${companyName}"?${extra}`)) return;
   await adminFetch(`/api/admin/dealers/${id}`, { method: "DELETE" });
   showToast("Concessionário eliminado.");
   loadDealers();
@@ -851,11 +933,22 @@ function buildDealerFilterOptions() {
 }
 
 function applyListingsFilter() {
-  const filtered = selectedDealerFilterId
+  let filtered = selectedDealerFilterId
     ? allListingsCache.filter(l => String(l.dealer_id) === String(selectedDealerFilterId))
     : allListingsCache;
+
+  const q = document.getElementById("listing-search-input").value.trim().toLowerCase();
+  if (q.length > 0) {
+    filtered = filtered.filter(l =>
+      (l.reference || "").toLowerCase().includes(q) ||
+      (l.description || "").toLowerCase().includes(q)
+    );
+  }
+
   renderListings(filtered);
 }
+
+document.getElementById("listing-search-input").addEventListener("input", applyListingsFilter);
 
 // Autocomplete do filtro: escreve para filtrar em vez de percorrer um
 // dropdown longo -- escala bem mesmo com muitos concessionários.
@@ -917,7 +1010,13 @@ function renderListings(listings) {
     return;
   }
 
-  const rows = listings.map(l => `
+  // Por defeito, peças mais recentes primeiro (dir: -1), ao contrário
+  // do padrão genérico de sortRows (asc). Só define isto se ainda não
+  // houver estado -- não deve sobrepor uma escolha manual do utilizador.
+  if (!sortState.listings) sortState.listings = { field: "created_at", dir: -1 };
+  const sorted = sortRows("listings", listings, "created_at");
+
+  const rows = sorted.map(l => `
     <tr data-id="${l.id}">
       <td><input class="editable" data-field="reference" value="${escapeAttr(l.reference)}" /></td>
       <td><input class="editable" data-field="description" value="${escapeAttr(l.description || "")}" /></td>
@@ -946,11 +1045,23 @@ function renderListings(listings) {
   area.innerHTML = `
     <table>
       <thead>
-        <tr><th>Referência</th><th>Descrição</th><th>Qtd.</th><th>Estado</th><th>Concessionário</th><th>Datas</th><th></th></tr>
+        <tr>
+          <th class="sortable" data-sort-field="reference">Referência${sortArrow("listings", "reference")}</th>
+          <th class="sortable" data-sort-field="description">Descrição${sortArrow("listings", "description")}</th>
+          <th class="sortable" data-sort-field="quantity">Qtd.${sortArrow("listings", "quantity")}</th>
+          <th class="sortable" data-sort-field="status">Estado${sortArrow("listings", "status")}</th>
+          <th class="sortable" data-sort-field="company_name">Concessionário${sortArrow("listings", "company_name")}</th>
+          <th class="sortable" data-sort-field="created_at">Datas${sortArrow("listings", "created_at")}</th>
+          <th></th>
+        </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
   `;
+
+  area.querySelectorAll("th.sortable").forEach(th => {
+    th.addEventListener("click", () => setSortField("listings", th.dataset.sortField, applyListingsFilter));
+  });
 
   area.querySelectorAll('[data-action="save-listing"]').forEach(btn => {
     btn.addEventListener("click", () => saveListing(Number(btn.dataset.id)));
@@ -1000,19 +1111,25 @@ function renderAlerts(alerts) {
     return;
   }
 
-  const rows = alerts.map(a => `
+  const rows = alerts.map(a => {
+    const matchCell = a.matches_count > 0
+      ? `<span class="badge ok">disponível — ${escapeAttr(a.match_dealer_name)}</span>`
+      : '<span class="badge none">ainda não</span>';
+
+    return `
     <tr>
       <td class="mono-cell">${escapeAttr(a.reference_normalized)}</td>
       <td>${escapeAttr(a.company_name)}</td>
       <td class="dates-cell">${formatDate(a.created_at)}</td>
-      <td>${a.notified_at ? '<span class="badge ok">notificado</span>' : '<span class="badge pending">à espera</span>'}</td>
+      <td>${matchCell}</td>
       <td><button class="btn-mini delete" data-action="delete-alert" data-id="${a.id}">Eliminar</button></td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   area.innerHTML = `
     <table>
-      <thead><tr><th>Referência</th><th>Pedido por</th><th>Data</th><th>Estado</th><th></th></tr></thead>
+      <thead><tr><th>Referência</th><th>Pedido por</th><th>Data</th><th>Já há peça?</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;

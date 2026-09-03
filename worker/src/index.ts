@@ -565,7 +565,7 @@ export default {
 
     // ---------- estatísticas rápidas ----------
     if (path === "/api/admin/stats" && request.method === "GET") {
-      const [dealerCounts, listingCounts, recentListings, pendingDealers] = await Promise.all([
+      const [dealerCounts, listingCounts, recentListings, pendingDealers, pendingAlerts] = await Promise.all([
         env.DB.prepare(
           "SELECT COUNT(*) AS total, SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) AS verified FROM dealers"
         ).first<{ total: number; verified: number }>(),
@@ -578,6 +578,9 @@ export default {
         env.DB.prepare(
           "SELECT COUNT(*) AS total FROM dealers WHERE verified = 0"
         ).first<{ total: number }>(),
+        env.DB.prepare(
+          "SELECT COUNT(*) AS total FROM reference_alerts WHERE notified_at IS NULL"
+        ).first<{ total: number }>(),
       ]);
 
       return json({
@@ -586,6 +589,7 @@ export default {
         pendingDealers: pendingDealers?.total || 0,
         activeListings: listingCounts?.total || 0,
         listingsLast7Days: recentListings?.total || 0,
+        pendingAlerts: pendingAlerts?.total || 0,
       });
     }
 
@@ -686,7 +690,13 @@ export default {
       const rows = await env.DB
         .prepare(
           `SELECT ra.id, ra.reference_normalized, ra.created_at, ra.notified_at,
-                  d.id AS dealer_id, d.company_name
+                  d.id AS dealer_id, d.company_name,
+                  (SELECT COUNT(*) FROM parts_listings pl
+                   WHERE pl.reference_normalized = ra.reference_normalized AND pl.status = 'active') AS matches_count,
+                  (SELECT d2.company_name FROM parts_listings pl2
+                   JOIN dealers d2 ON d2.id = pl2.dealer_id
+                   WHERE pl2.reference_normalized = ra.reference_normalized AND pl2.status = 'active'
+                   LIMIT 1) AS match_dealer_name
            FROM reference_alerts ra
            JOIN dealers d ON d.id = ra.dealer_id
            ORDER BY ra.created_at DESC`
@@ -759,9 +769,11 @@ export default {
     if (path === "/api/admin/dealers" && request.method === "GET") {
       const rows = await env.DB
         .prepare(
-          `SELECT id, company_name, contact_name, phone, email, email_confirmed,
-                  city, postal_code, verified, verified_at, verification_method, created_at, last_login_at
-           FROM dealers ORDER BY created_at DESC`
+          `SELECT d.id, d.company_name, d.contact_name, d.phone, d.email, d.email_confirmed,
+                  d.city, d.postal_code, d.verified, d.verified_at, d.verification_method,
+                  d.created_at, d.last_login_at,
+                  (SELECT COUNT(*) FROM parts_listings pl WHERE pl.dealer_id = d.id AND pl.status = 'active') AS active_listings_count
+           FROM dealers d ORDER BY d.created_at DESC`
         )
         .all();
       return json({ results: rows.results || [] });
