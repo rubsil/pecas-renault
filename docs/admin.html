@@ -270,6 +270,7 @@
 
     <div class="panel active" id="panel-dealers">
       <button class="btn-toggle-form" id="btn-toggle-new-dealer">+ Criar conta manualmente</button>
+      <button class="btn-toggle-form" id="btn-sync-coordinates">📍 Sincronizar coordenadas (contas já registadas)</button>
 
       <div class="new-dealer-form" id="new-dealer-form" style="display: none;">
         <div class="hint" style="margin-bottom: 0.75rem;">
@@ -688,6 +689,27 @@ document.addEventListener("click", (e) => {
 document.getElementById("btn-toggle-new-dealer").addEventListener("click", () => {
   const form = document.getElementById("new-dealer-form");
   form.style.display = form.style.display === "none" ? "block" : "none";
+});
+
+// ---------- sincronizar coordenadas de contas já registadas ----------
+// Cobre o caso de contas registadas antes de a lista oficial ter sido
+// geocodificada -- registos novos já herdam isto automaticamente.
+document.getElementById("btn-sync-coordinates").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-sync-coordinates");
+  btn.disabled = true;
+  btn.textContent = "A sincronizar…";
+
+  try {
+    const res = await adminFetch("/api/admin/dealers/sync-coordinates", { method: "POST" });
+    const data = await res.json();
+    showToast(data.updated > 0 ? `${data.updated} conta(s) atualizada(s).` : "Já estava tudo sincronizado.");
+    loadDealers();
+  } catch (err) {
+    showToast("Erro ao sincronizar.");
+  }
+
+  btn.disabled = false;
+  btn.textContent = "📍 Sincronizar coordenadas (contas já registadas)";
 });
 
 document.getElementById("btn-cancel-new-dealer").addEventListener("click", () => {

@@ -24,6 +24,7 @@
 //   PATCH  /api/admin/official-dealers/:id  — edita uma loja da lista oficial
 //   DELETE /api/admin/official-dealers/:id  — remove uma loja da lista oficial
 //   POST   /api/admin/official-dealers/geocode-batch — geocodifica um lote (ver query ?limit=)
+//   POST   /api/admin/dealers/sync-coordinates — copia lat/lon de official_dealers p/ contas já registadas
 //   GET    /api/admin/alerts                — lista todos os alertas de referência
 //   DELETE /api/admin/alerts/:id            — elimina um alerta
 //   GET    /api/admin/activity-log          — histórico de ações do admin
@@ -221,12 +222,26 @@ export default {
         return json({ error: "Já existe uma conta registada com este telefone para esta loja. Usa o login." }, { status: 409 });
       }
 
+      // Se a conta ficou ligada a uma loja oficial já geocodificada,
+      // herda logo as coordenadas -- evita geocodificar outra vez o
+      // mesmo endereço, e a distância já funciona desde o primeiro dia.
+      let inheritedLat: number | null = null;
+      let inheritedLon: number | null = null;
+      if (verification.officialDealerId) {
+        const officialCoords = await env.DB
+          .prepare("SELECT lat, lon FROM official_dealers WHERE id = ?")
+          .bind(verification.officialDealerId)
+          .first<{ lat: number | null; lon: number | null }>();
+        inheritedLat = officialCoords?.lat ?? null;
+        inheritedLon = officialCoords?.lon ?? null;
+      }
+
       const result = await env.DB
         .prepare(
           `INSERT INTO dealers
             (company_name, contact_name, phone, phone_normalized, email, email_confirmed,
-             address, postal_code, city, official_dealer_id, verified, verified_at, verification_method)
-           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
+             address, postal_code, city, lat, lon, official_dealer_id, verified, verified_at, verification_method)
+           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           body.companyName,
@@ -237,6 +252,8 @@ export default {
           body.address || null,
           body.postalCode || null,
           body.city || null,
+          inheritedLat,
+          inheritedLon,
           verification.officialDealerId,
           verification.verified ? 1 : 0,
           verification.verified ? new Date().toISOString() : null,
@@ -903,6 +920,28 @@ export default {
         ["Referência", "Descrição", "Quantidade", "Estado", "Notas", "Concessionário", "Publicada em"],
         data
       );
+    }
+
+    // ---------- copiar coordenadas para contas já registadas ----------
+    // Contas registadas antes de a lista oficial ter sido geocodificada
+    // ficam sem lat/lon -- esta rota copia-as retroativamente, usando a
+    // ligação já existente (official_dealer_id). Registos novos já
+    // herdam isto automaticamente no momento do registo (ver POST
+    // /api/dealers/register); esta rota só serve para "apanhar" quem
+    // já estava registado antes disso existir.
+    if (path === "/api/admin/dealers/sync-coordinates" && request.method === "POST") {
+      const result = await env.DB
+        .prepare(
+          `UPDATE dealers
+           SET lat = (SELECT lat FROM official_dealers WHERE id = dealers.official_dealer_id),
+               lon = (SELECT lon FROM official_dealers WHERE id = dealers.official_dealer_id)
+           WHERE official_dealer_id IS NOT NULL
+             AND lat IS NULL
+             AND EXISTS (SELECT 1 FROM official_dealers WHERE id = dealers.official_dealer_id AND lat IS NOT NULL)`
+        )
+        .run();
+
+      return json({ message: "Coordenadas sincronizadas.", updated: result.meta.changes || 0 });
     }
 
     // ---------- listar todos os concessionários ----------
