@@ -23,6 +23,7 @@
 //   POST   /api/admin/official-dealers      — adiciona loja à lista oficial manualmente
 //   PATCH  /api/admin/official-dealers/:id  — edita uma loja da lista oficial
 //   DELETE /api/admin/official-dealers/:id  — remove uma loja da lista oficial
+//   POST   /api/admin/official-dealers/geocode-batch — geocodifica um lote (ver query ?limit=)
 //   GET    /api/admin/alerts                — lista todos os alertas de referência
 //   DELETE /api/admin/alerts/:id            — elimina um alerta
 //   GET    /api/admin/activity-log          — histórico de ações do admin
@@ -33,6 +34,7 @@
 //   PATCH  /api/admin/dealers/:id           — edita um concessionário (nome, telefone, email, verified)
 //   DELETE /api/admin/dealers/:id           — elimina um concessionário e as suas peças
 //   POST   /api/admin/dealers/:id/resend-confirmation — reenvia código de confirmação de email
+//   POST   /api/admin/dealers/:id/geocode  — geocodifica a morada do concessionário (lat/lon)
 //   GET    /api/admin/listings              — lista todas as peças (qualquer estado)
 //   PATCH  /api/admin/listings/:id          — edita qualquer peça
 //   DELETE /api/admin/listings/:id          — elimina qualquer peça
@@ -45,6 +47,7 @@ import { normalizePhone, normalizeReference, normalizeText } from "./normalize";
 import { verifyAgainstOfficialList } from "./verification";
 import { createLoginCode, redeemLoginCode, resolveSession } from "./auth";
 import { checkAdminAuth } from "./admin";
+import { geocodeAddress, distanceKm, sleep } from "./geocoding";
 
 export interface Env {
   DB: D1Database;
@@ -512,7 +515,7 @@ export default {
         .prepare(
           `SELECT
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
-             d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified,
+             d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified, d.lat, d.lon,
              (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
@@ -520,9 +523,39 @@ export default {
            ORDER BY pl.created_at DESC
            LIMIT 100`
         )
-        .all();
+        .all<any>();
 
-      return json({ results: rows.results || [] });
+      let results = rows.results || [];
+
+      // Se quem pesquisa está autenticado e tem coordenadas gravadas,
+      // calcula a distância a cada peça e ordena por proximidade em
+      // vez de por data. Sem coordenadas de nenhum dos lados, o campo
+      // distance_km fica omisso e a ordem mantém-se por data (como já
+      // era antes desta funcionalidade existir).
+      const fromDealerId = url.searchParams.get("fromDealerId");
+      if (fromDealerId) {
+        const origin = await env.DB
+          .prepare("SELECT lat, lon FROM dealers WHERE id = ?")
+          .bind(Number(fromDealerId))
+          .first<{ lat: number | null; lon: number | null }>();
+
+        if (origin?.lat != null && origin?.lon != null) {
+          results = results.map((r) => ({
+            ...r,
+            distance_km:
+              r.lat != null && r.lon != null
+                ? Math.round(distanceKm(origin.lat as number, origin.lon as number, r.lat, r.lon) * 10) / 10
+                : null,
+          }));
+          results.sort((a, b) => {
+            if (a.distance_km == null) return 1; // sem coordenadas vai para o fim
+            if (b.distance_km == null) return -1;
+            return a.distance_km - b.distance_km;
+          });
+        }
+      }
+
+      return json({ results });
     }
 
     if (path === "/api/listings/search" && request.method === "GET") {
@@ -651,7 +684,7 @@ export default {
       const rows = await env.DB
         .prepare(
           `SELECT
-             od.id, od.company_name, od.city, od.postal_code, od.phone,
+             od.id, od.company_name, od.city, od.postal_code, od.phone, od.lat, od.lon,
              d.id AS dealer_id, d.verified, d.email, d.email_confirmed
            FROM official_dealers od
            LEFT JOIN dealers d ON d.official_dealer_id = od.id
@@ -693,6 +726,60 @@ export default {
 
       await logAdminActivity(env.DB, "official_dealer_created", "official_dealer", result.meta.last_row_id, body.companyName);
       return json({ id: result.meta.last_row_id, message: "Loja adicionada à lista oficial." });
+    }
+
+    // ---------- geocodificar um lote de concessionários da lista oficial ----------
+    // Processa alguns de cada vez (não todos os 97 num só pedido), para
+    // o pedido HTTP nunca ficar demasiado tempo aberto. O admin chama
+    // isto repetidamente (o painel faz isso sozinho) até já não sobrar
+    // nenhum por geocodificar. 1 segundo de pausa entre cada pedido ao
+    // Nominatim, dentro deste lote -- respeita o limite deles sem
+    // precisar de um processo em segundo plano.
+    if (path === "/api/admin/official-dealers/geocode-batch" && request.method === "POST") {
+      const batchSize = Math.min(Number(url.searchParams.get("limit")) || 5, 10);
+
+      const pending = await env.DB
+        .prepare("SELECT id, company_name, address, postal_code, city FROM official_dealers WHERE lat IS NULL AND geocoded_at IS NULL LIMIT ?")
+        .bind(batchSize)
+        .all<{ id: number; company_name: string; address: string | null; postal_code: string | null; city: string | null }>();
+
+      const rows = pending.results || [];
+      const processed: { id: number; company_name: string; found: boolean }[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const result = await geocodeAddress(row.address, row.postal_code, row.city, row.company_name);
+
+        if (result) {
+          await env.DB
+            .prepare("UPDATE official_dealers SET lat = ?, lon = ?, geocoded_at = datetime('now') WHERE id = ?")
+            .bind(result.lat, result.lon, row.id)
+            .run();
+        } else {
+          // Marca como tentado mesmo sem sucesso (geocoded_at preenchido,
+          // lat/lon continuam NULL) -- para não ficar preso a tentar o
+          // mesmo registo em todos os lotes seguintes para sempre.
+          await env.DB
+            .prepare("UPDATE official_dealers SET geocoded_at = datetime('now') WHERE id = ?")
+            .bind(row.id)
+            .run();
+        }
+
+        processed.push({ id: row.id, company_name: row.company_name, found: !!result });
+
+        // Pausa entre pedidos, exceto depois do último deste lote.
+        if (i < rows.length - 1) await sleep(1100);
+      }
+
+      const remaining = await env.DB
+        .prepare("SELECT COUNT(*) AS total FROM official_dealers WHERE lat IS NULL AND geocoded_at IS NULL")
+        .first<{ total: number }>();
+
+      return json({
+        processed,
+        remainingCount: remaining?.total || 0,
+        done: (remaining?.total || 0) === 0,
+      });
     }
 
     // ---------- editar/remover uma loja da lista oficial ----------
@@ -979,6 +1066,36 @@ export default {
       // NOTA DE IMPLEMENTAÇÃO: falta ligar a um serviço real de email
       // (ex: Resend) — mesma limitação do fluxo normal de registo.
       return json({ message: "Novo código gerado.", devCode: code });
+    }
+
+    // ---------- geocodificar a morada de um concessionário ----------
+    const geocodeMatch = path.match(/^\/api\/admin\/dealers\/(\d+)\/geocode$/);
+    if (geocodeMatch && request.method === "POST") {
+      const dealerId = Number(geocodeMatch[1]);
+
+      const dealer = await env.DB
+        .prepare("SELECT id, address, postal_code, city FROM dealers WHERE id = ?")
+        .bind(dealerId)
+        .first<{ id: number; address: string | null; postal_code: string | null; city: string | null }>();
+
+      if (!dealer) return json({ error: "Conta não encontrada." }, { status: 404 });
+      if (!dealer.city && !dealer.postal_code) {
+        return json({ error: "Sem cidade nem código postal para geocodificar." }, { status: 400 });
+      }
+
+      const result = await geocodeAddress(dealer.address, dealer.postal_code, dealer.city);
+      if (!result) {
+        return json({ error: "Não foi possível encontrar coordenadas para esta morada." }, { status: 404 });
+      }
+
+      await env.DB
+        .prepare("UPDATE dealers SET lat = ?, lon = ? WHERE id = ?")
+        .bind(result.lat, result.lon, dealerId)
+        .run();
+
+      await logAdminActivity(env.DB, "dealer_geocoded", "dealer", dealerId, `${result.lat}, ${result.lon}`);
+
+      return json({ message: "Coordenadas encontradas e guardadas.", lat: result.lat, lon: result.lon });
     }
 
     // ---------- listar todas as peças (qualquer estado) ----------

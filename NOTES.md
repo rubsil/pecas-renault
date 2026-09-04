@@ -116,6 +116,7 @@ D1 → `peca-troca-db` → Console). Histórico:
 - `0004_dealer_verified_at.sql` — coluna `verified_at`
 - `0005_admin_activity_log.sql` — tabela `admin_activity_log`
 - `0006_listing_alt_references.sql` — tabela `listing_alt_references`
+- `0007_official_dealers_coordinates.sql` — colunas `lat`/`lon`/`geocoded_at` na lista oficial
 
 ## Correções manuais na base de dados
 

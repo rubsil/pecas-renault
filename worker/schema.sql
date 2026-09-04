@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS official_dealers (
   city TEXT,
   phone TEXT,
   phone_normalized TEXT,                    -- só dígitos, para matching
+  lat REAL,                                 -- coordenadas geocodificadas (ver worker/src/geocoding.ts)
+  lon REAL,
+  geocoded_at TEXT,                         -- quando foi geocodificado (NULL se ainda não)
   source_url TEXT,
   imported_at TEXT DEFAULT (datetime('now'))
 );

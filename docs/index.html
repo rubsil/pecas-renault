@@ -253,6 +253,13 @@
     border-radius: 3px;
   }
 
+  .badge-distance {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-faint);
+    padding: 0.1rem 0.2rem;
+  }
+
   .result-dealer a {
     color: var(--accent-text);
     text-decoration: none;
@@ -392,6 +399,9 @@ function renderResults(results, emptyMessage) {
     const badge = r.verified
       ? '<span class="badge-verified">Verificado</span>'
       : '<span class="badge-pending">Por confirmar</span>';
+    const distanceBadge = r.distance_km != null
+      ? `<span class="badge-distance">a ${r.distance_km} km</span>`
+      : "";
 
     card.innerHTML = `
       <div class="result-ref">${escapeHtml(r.reference)}</div>
@@ -403,6 +413,7 @@ function renderResults(results, emptyMessage) {
         <div class="result-dealer-name">
           <strong>${escapeHtml(r.company_name)}</strong>
           ${badge}
+          ${distanceBadge}
         </div>
         <div class="result-dealer-meta">
           <span>${escapeHtml(r.city || "")}</span>
@@ -418,7 +429,10 @@ function renderResults(results, emptyMessage) {
 async function loadAllListings() {
   resultsArea.innerHTML = '<div class="status-line">A carregar peças publicadas…</div>';
   try {
-    const res = await fetch(`${API_BASE}/api/listings/browse`);
+    const url = myDealerId
+      ? `${API_BASE}/api/listings/browse?fromDealerId=${myDealerId}`
+      : `${API_BASE}/api/listings/browse`;
+    const res = await fetch(url);
     const data = await res.json();
     if (!res.ok) {
       resultsArea.innerHTML = `<div class="status-line">${data.error || "Não foi possível carregar."}</div>`;
@@ -472,6 +486,7 @@ input.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); }
 const accountLink = document.getElementById("nav-account-link");
 const sessionLink = document.getElementById("nav-session-link");
 const dealerNameEl = document.getElementById("nav-dealer-name");
+let myDealerId = null; // preenchido abaixo se houver sessão -- usado para calcular distância
 
 if (sessionToken) {
   accountLink.textContent = "A minha conta";
@@ -482,7 +497,8 @@ if (sessionToken) {
     location.reload();
   });
 
-  // Mostra o nome do concessionário autenticado, tipo "Auto Exemplo, Lda".
+  // Mostra o nome do concessionário autenticado, tipo "Auto Exemplo, Lda",
+  // e guarda o id para calcular distância nos resultados de pesquisa.
   fetch(`${API_BASE}/api/dealers/me`, { headers: { authorization: `Bearer ${sessionToken}` } })
     .then(res => res.ok ? res.json() : null)
     .then(data => {
@@ -490,16 +506,18 @@ if (sessionToken) {
         dealerNameEl.textContent = data.dealer.company_name;
         dealerNameEl.style.display = "";
       }
+      if (data?.dealer?.id) {
+        myDealerId = data.dealer.id;
+      }
     })
-    .catch(() => {});
+    .catch(() => {})
+    .finally(() => loadAllListings()); // só carrega depois de saber (ou não) o dealerId
 } else {
   // Deixa explícito que este link também serve para criar conta —
   // sem isto, quem chega pela primeira vez não percebe que há registo.
   accountLink.textContent = "Entrar / Registar";
+  loadAllListings();
 }
-
-// ---------- carregar lista ao abrir a página ----------
-loadAllListings();
 </script>
 
 </body>

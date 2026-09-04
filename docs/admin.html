@@ -166,6 +166,22 @@
     color: var(--accent-text); cursor: pointer;
   }
   .btn-toggle-form:hover { background: var(--accent-soft); border-style: solid; border-color: var(--accent); }
+  .btn-toggle-form:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .geocode-progress {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+  }
+  .geocode-bar-wrap {
+    width: 100%; height: 0.5rem; background: var(--paper); border-radius: 999px;
+    overflow: hidden; margin: 0.6rem 0;
+  }
+  .geocode-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s ease; }
+  .geocode-log {
+    max-height: 140px; overflow-y: auto; font-size: 0.78rem; font-family: var(--mono);
+    color: var(--ink-soft); line-height: 1.6;
+  }
+  .geocode-log .fail { color: var(--warn); }
 
   .new-dealer-form {
     background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
@@ -326,6 +342,13 @@
           <button class="edit-save-btn" id="btn-create-official">Adicionar</button>
           <button class="edit-cancel-btn" id="btn-cancel-new-official">Cancelar</button>
         </div>
+      </div>
+
+      <button class="btn-toggle-form" id="btn-start-geocode">📍 Geocodificar todos (coordenadas para calcular distância)</button>
+      <div class="geocode-progress" id="geocode-progress" style="display: none;">
+        <div class="hint" id="geocode-status">A iniciar…</div>
+        <div class="geocode-bar-wrap"><div class="geocode-bar" id="geocode-bar"></div></div>
+        <div class="geocode-log" id="geocode-log"></div>
       </div>
 
       <div class="listings-filter">
@@ -876,6 +899,70 @@ async function resendConfirmation(id) {
   }
 }
 
+// ---------- geocoding em lote ----------
+// Chama a rota de lote repetidamente até done=true. Cada lote processa
+// poucos registos de cada vez (o Worker já pausa 1s entre cada, para
+// respeitar o limite do Nominatim) -- isto evita um único pedido HTTP
+// gigante que podia ficar demasiado tempo pendurado.
+let geocodeRunning = false;
+
+document.getElementById("btn-start-geocode").addEventListener("click", async () => {
+  if (geocodeRunning) return;
+  geocodeRunning = true;
+
+  const btn = document.getElementById("btn-start-geocode");
+  const progressBox = document.getElementById("geocode-progress");
+  const statusEl = document.getElementById("geocode-status");
+  const barEl = document.getElementById("geocode-bar");
+  const logEl = document.getElementById("geocode-log");
+
+  btn.disabled = true;
+  progressBox.style.display = "block";
+  logEl.innerHTML = "";
+
+  // Total inicial só para calcular percentagem -- pega no primeiro
+  // "remainingCount" devolvido e usa como referência da barra.
+  let initialRemaining = null;
+
+  while (true) {
+    let data;
+    try {
+      const res = await adminFetch("/api/admin/official-dealers/geocode-batch?limit=5", { method: "POST" });
+      data = await res.json();
+    } catch (err) {
+      statusEl.textContent = "Erro de ligação. Tenta novamente.";
+      break;
+    }
+
+    if (initialRemaining === null) {
+      initialRemaining = data.remainingCount + (data.processed?.length || 0);
+    }
+
+    for (const p of data.processed || []) {
+      const line = document.createElement("div");
+      line.className = p.found ? "" : "fail";
+      line.textContent = `${p.found ? "✓" : "✗"} ${p.company_name}`;
+      logEl.appendChild(line);
+    }
+    logEl.scrollTop = logEl.scrollHeight;
+
+    const done = data.remainingCount || 0;
+    const doneCount = initialRemaining - done;
+    const pct = initialRemaining > 0 ? Math.round((doneCount / initialRemaining) * 100) : 100;
+    barEl.style.width = `${pct}%`;
+    statusEl.textContent = `${doneCount} de ${initialRemaining} processados… (${done} por fazer)`;
+
+    if (data.done) {
+      statusEl.textContent = `Concluído — ${doneCount} concessionários processados.`;
+      break;
+    }
+  }
+
+  btn.disabled = false;
+  geocodeRunning = false;
+  loadOfficialDealers(); // atualiza a tabela com as coordenadas novas
+});
+
 // ---------- lista oficial ----------
 document.getElementById("btn-toggle-new-official").addEventListener("click", () => {
   const form = document.getElementById("new-official-form");
@@ -963,6 +1050,7 @@ function renderOfficialDealers(list) {
         <td><input class="editable phone-field" data-field="phone" value="${escapeAttr(o.phone || "")}" /></td>
         <td><input class="editable postal-code-field" data-field="postalCode" value="${escapeAttr(o.postal_code || "")}" /></td>
         <td>${badge}</td>
+        <td>${o.lat != null ? '<span class="badge ok">📍</span>' : '<span class="badge none">—</span>'}</td>
         <td>${o.email ? escapeAttr(o.email) : "—"}</td>
         <td>
           <div class="row-actions">
@@ -978,7 +1066,7 @@ function renderOfficialDealers(list) {
     <div class="hint" style="margin-bottom: 0.75rem;">A mostrar ${list.length} de ${officialDealersCache.length} concessionários oficiais.</div>
     <table>
       <thead>
-        <tr><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>C. Postal</th><th>Estado</th><th>Email (se registado)</th><th></th></tr>
+        <tr><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>C. Postal</th><th>Estado</th><th>Coords.</th><th>Email (se registado)</th><th></th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>

@@ -57,6 +57,13 @@ tempo real.
   referência principal — resolve o caso comum de alguém procurar pelo
   código "errado" e não encontrar uma peça que na verdade está lá.
 
+- **Distância entre concessionários.** As coordenadas de cada
+  concessionário são geocodificadas uma única vez (endereços não
+  mudam de sítio), a partir da lista oficial. Quem está autenticado
+  vê a distância a cada peça encontrada, ordenada da mais próxima
+  para a mais distante — sem pedir localização GPS a ninguém, já que
+  a morada registada já chega.
+
 - **Sem scraping.** Ao contrário de abordagens que dependem de extrair
   dados de sites de terceiros (frágil, muda sem aviso, levanta questões
   legais), a única fonte externa usada é a lista pública e oficial de
