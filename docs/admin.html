@@ -127,6 +127,8 @@
   .tag-add-btn:hover { background: var(--accent); }
 
   .badge { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 3px; white-space: nowrap; display: inline-block; }
+  a.badge { text-decoration: none; cursor: pointer; }
+  a.badge:hover { opacity: 0.75; }
   .badge.ok { background: var(--accent-soft); color: var(--accent-text); }
   .badge.pending { background: var(--warn-soft); color: var(--warn); }
   .badge.none { background: var(--paper); color: var(--ink-faint); border: 1px solid var(--line); }
@@ -1072,7 +1074,7 @@ function renderOfficialDealers(list) {
         <td><input class="editable phone-field" data-field="phone" value="${escapeAttr(o.phone || "")}" /></td>
         <td><input class="editable postal-code-field" data-field="postalCode" value="${escapeAttr(o.postal_code || "")}" /></td>
         <td>${badge}</td>
-        <td>${o.lat != null ? '<span class="badge ok">📍</span>' : '<span class="badge none">—</span>'}</td>
+        <td>${o.lat != null ? `<a href="https://www.google.com/maps?q=${o.lat},${o.lon}" target="_blank" rel="noopener" class="badge ok" title="Ver no Google Maps">📍</a>` : '<span class="badge none">—</span>'}</td>
         <td>${o.email ? escapeAttr(o.email) : "—"}</td>
         <td>
           <div class="row-actions">
