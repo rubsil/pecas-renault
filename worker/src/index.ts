@@ -702,7 +702,8 @@ export default {
         .prepare(
           `SELECT
              od.id, od.company_name, od.city, od.postal_code, od.phone, od.lat, od.lon,
-             d.id AS dealer_id, d.verified, d.email, d.email_confirmed
+             d.id AS dealer_id, d.verified, d.email, d.email_confirmed,
+             (SELECT COUNT(*) FROM parts_listings pl WHERE pl.dealer_id = d.id AND pl.status = 'active') AS active_listings_count
            FROM official_dealers od
            LEFT JOIN dealers d ON d.official_dealer_id = od.id
            ORDER BY od.company_name`
@@ -820,11 +821,28 @@ export default {
       if (typeof body.city === "string") { fields.push("city = ?"); values.push(body.city); }
       if (typeof body.postalCode === "string") { fields.push("postal_code = ?"); values.push(body.postalCode); }
       if (typeof body.address === "string") { fields.push("address = ?"); values.push(body.address); }
+      if (typeof body.lat === "number" && typeof body.lon === "number") {
+        fields.push("lat = ?", "lon = ?", "geocoded_at = datetime('now')");
+        values.push(body.lat, body.lon);
+      }
 
       if (fields.length === 0) return json({ error: "Nada para atualizar." }, { status: 400 });
 
       values.push(officialId);
       await env.DB.prepare(`UPDATE official_dealers SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+
+      // Se a correção incluiu coordenadas, propaga-as logo às contas já
+      // registadas que apontam para esta loja -- sem isto, a correção
+      // ficava só na lista oficial e a conta continuava com o valor
+      // antigo (ou sem nenhum), como já aconteceu ao corrigir o Faial
+      // e o Pico manualmente antes de esta funcionalidade existir.
+      if (typeof body.lat === "number" && typeof body.lon === "number") {
+        await env.DB
+          .prepare("UPDATE dealers SET lat = ?, lon = ? WHERE official_dealer_id = ?")
+          .bind(body.lat, body.lon, officialId)
+          .run();
+      }
+
       await logAdminActivity(env.DB, "official_dealer_updated", "official_dealer", officialId, JSON.stringify(body));
       return json({ message: "Loja atualizada." });
     }

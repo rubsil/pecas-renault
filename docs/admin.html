@@ -126,6 +126,21 @@
   }
   .tag-add-btn:hover { background: var(--accent); }
 
+  .coords-cell { white-space: nowrap; position: relative; }
+  .coords-edit-btn {
+    width: 1.2rem; height: 1.2rem; margin-left: 0.3rem; font-size: 0.68rem; padding: 0;
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: 3px;
+    cursor: pointer; color: var(--ink-soft); display: inline-flex; align-items: center; justify-content: center;
+  }
+  .coords-edit-btn:hover { border-color: var(--accent); color: var(--accent-text); }
+  .coords-edit-form {
+    display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.4rem;
+  }
+  .coords-lat-input, .coords-lon-input {
+    width: 4.6rem; padding: 0.15rem 0.3rem; font-size: 0.72rem; font-family: var(--mono);
+    border: 1px solid var(--line); border-radius: 3px;
+  }
+
   .badge { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 3px; white-space: nowrap; display: inline-block; }
   a.badge { text-decoration: none; cursor: pointer; }
   a.badge:hover { opacity: 0.75; }
@@ -316,6 +331,8 @@
     </div>
 
     <div class="panel" id="panel-official">
+      <div class="stats-bar" id="official-health-bar"></div>
+
       <button class="btn-toggle-form" id="btn-toggle-new-official">+ Adicionar concessionário à lista</button>
 
       <div class="new-dealer-form" id="new-official-form" style="display: none;">
@@ -1035,10 +1052,38 @@ async function loadOfficialDealers() {
     const res = await adminFetch("/api/admin/official-dealers");
     const data = await res.json();
     officialDealersCache = data.results || [];
+    renderOfficialHealth();
     applyOfficialFilter();
   } catch (err) {
     area.innerHTML = '<div class="status-line">Erro ao carregar.</div>';
   }
+}
+
+function renderOfficialHealth() {
+  const bar = document.getElementById("official-health-bar");
+  const total = officialDealersCache.length;
+  const withCoords = officialDealersCache.filter(o => o.lat != null).length;
+  const withoutCoords = total - withCoords;
+  const registered = officialDealersCache.filter(o => o.dealer_id != null).length;
+
+  bar.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-value">${total}</div>
+      <div class="stat-label">concessionários na lista</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${withCoords}</div>
+      <div class="stat-label">com coordenadas</div>
+    </div>
+    <div class="stat-card ${withoutCoords > 0 ? "warn" : ""}">
+      <div class="stat-value">${withoutCoords}</div>
+      <div class="stat-label">sem coordenadas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${registered}</div>
+      <div class="stat-label">com conta registada</div>
+    </div>
+  `;
 }
 
 function applyOfficialFilter() {
@@ -1074,8 +1119,17 @@ function renderOfficialDealers(list) {
         <td><input class="editable phone-field" data-field="phone" value="${escapeAttr(o.phone || "")}" /></td>
         <td><input class="editable postal-code-field" data-field="postalCode" value="${escapeAttr(o.postal_code || "")}" /></td>
         <td>${badge}</td>
-        <td>${o.lat != null ? `<a href="https://www.google.com/maps?q=${o.lat},${o.lon}" target="_blank" rel="noopener" class="badge ok" title="Ver no Google Maps">📍</a>` : '<span class="badge none">—</span>'}</td>
+        <td class="coords-cell">
+          ${o.lat != null ? `<a href="https://www.google.com/maps?q=${o.lat},${o.lon}" target="_blank" rel="noopener" class="badge ok" title="Ver no Google Maps">📍</a>` : '<span class="badge none">—</span>'}
+          <button type="button" class="coords-edit-btn" data-action="toggle-coords" data-id="${o.id}" title="Corrigir coordenadas manualmente">✎</button>
+          <div class="coords-edit-form" id="coords-form-${o.id}" style="display: none;">
+            <input type="text" class="coords-lat-input" id="coords-lat-${o.id}" placeholder="lat" value="${o.lat != null ? o.lat : ""}" />
+            <input type="text" class="coords-lon-input" id="coords-lon-${o.id}" placeholder="lon" value="${o.lon != null ? o.lon : ""}" />
+            <button type="button" class="btn-mini save" data-action="save-coords" data-id="${o.id}">✓</button>
+          </div>
+        </td>
         <td>${o.email ? escapeAttr(o.email) : "—"}</td>
+        <td class="dates-cell">${o.dealer_id ? `${o.active_listings_count} peça${o.active_listings_count === 1 ? "" : "s"}` : "—"}</td>
         <td>
           <div class="row-actions">
             <button class="btn-mini save" data-action="save-official" data-id="${o.id}">Guardar</button>
@@ -1090,7 +1144,7 @@ function renderOfficialDealers(list) {
     <div class="hint" style="margin-bottom: 0.75rem;">A mostrar ${list.length} de ${officialDealersCache.length} concessionários oficiais.</div>
     <table>
       <thead>
-        <tr><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>C. Postal</th><th>Estado</th><th>Coords.</th><th>Email (se registado)</th><th></th></tr>
+        <tr><th>Empresa</th><th>Cidade</th><th>Telefone</th><th>C. Postal</th><th>Estado</th><th>Coords.</th><th>Email (se registado)</th><th>Peças</th><th></th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
@@ -1102,6 +1156,31 @@ function renderOfficialDealers(list) {
   area.querySelectorAll('[data-action="delete-official"]').forEach(btn => {
     btn.addEventListener("click", () => deleteOfficialDealer(Number(btn.dataset.id)));
   });
+  area.querySelectorAll('[data-action="toggle-coords"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const form = document.getElementById(`coords-form-${btn.dataset.id}`);
+      form.style.display = form.style.display === "none" ? "inline-flex" : "none";
+    });
+  });
+  area.querySelectorAll('[data-action="save-coords"]').forEach(btn => {
+    btn.addEventListener("click", () => saveOfficialCoords(Number(btn.dataset.id)));
+  });
+}
+
+async function saveOfficialCoords(id) {
+  const latInput = document.getElementById(`coords-lat-${id}`);
+  const lonInput = document.getElementById(`coords-lon-${id}`);
+  const lat = parseFloat(latInput.value.replace(",", "."));
+  const lon = parseFloat(lonInput.value.replace(",", "."));
+
+  if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    showToast("Coordenadas inválidas. Usa o formato 38.5309, -28.6286.");
+    return;
+  }
+
+  await adminFetch(`/api/admin/official-dealers/${id}`, { method: "PATCH", body: JSON.stringify({ lat, lon }) });
+  showToast("Coordenadas corrigidas.");
+  loadOfficialDealers();
 }
 
 async function saveOfficialDealer(id) {
