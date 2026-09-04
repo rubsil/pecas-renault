@@ -64,6 +64,11 @@ tempo real.
   para a mais distante — sem pedir localização GPS a ninguém, já que
   a morada registada já chega.
 
+- **Mapa da rede.** As mesmas coordenadas alimentam uma vista de mapa
+  (Leaflet + OpenStreetMap, sem chave de API nem custo) que mostra
+  todos os concessionários com stock disponível — um pin por loja,
+  com as referências que tem publicadas.
+
 - **Sem scraping.** Ao contrário de abordagens que dependem de extrair
   dados de sites de terceiros (frágil, muda sem aviso, levanta questões
   legais), a única fonte externa usada é a lista pública e oficial de

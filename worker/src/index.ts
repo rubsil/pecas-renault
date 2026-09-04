@@ -11,6 +11,7 @@
 //   POST /api/listings                — publica peça (autenticado)
 //   PATCH /api/listings/:id           — atualiza estado (sold/removed) (autenticado, dono)
 //   GET  /api/listings/browse         — lista todas as peças ativas (sem pesquisa)
+//   GET  /api/listings/map            — concessionários com peças ativas, agrupados, com coordenadas
 //   GET  /api/listings/search?ref=... — pesquisa por referência
 //   GET  /api/listings/mine           — listagens do próprio concessionário (autenticado)
 //
@@ -573,6 +574,29 @@ export default {
       }
 
       return json({ results });
+    }
+
+    // ---------- concessionários com peças ativas, para o mapa ----------
+    // Um resultado por concessionário (não por peça), com as
+    // referências agregadas -- o mapa mostra um pin por loja, não um
+    // pin por peça, que ficaria empilhado e ilegível quando um
+    // concessionário tem várias peças publicadas.
+    if (path === "/api/listings/map" && request.method === "GET") {
+      const rows = await env.DB
+        .prepare(
+          `SELECT
+             d.id AS dealer_id, d.company_name, d.city, d.phone, d.email, d.verified, d.lat, d.lon,
+             COUNT(pl.id) AS listing_count,
+             GROUP_CONCAT(pl.reference, ', ') AS references_list
+           FROM parts_listings pl
+           JOIN dealers d ON d.id = pl.dealer_id
+           WHERE pl.status = 'active' AND d.lat IS NOT NULL AND d.lon IS NOT NULL
+           GROUP BY d.id
+           ORDER BY d.company_name`
+        )
+        .all();
+
+      return json({ results: rows.results || [] });
     }
 
     if (path === "/api/listings/search" && request.method === "GET") {
