@@ -50,10 +50,15 @@ import { verifyAgainstOfficialList } from "./verification";
 import { createLoginCode, redeemLoginCode, resolveSession } from "./auth";
 import { checkAdminAuth } from "./admin";
 import { geocodeAddress, distanceKm, sleep } from "./geocoding";
+import { sendEmail, buildVerificationEmailBody, gmailConfigured } from "./email";
 
 export interface Env {
   DB: D1Database;
   ADMIN_PASSWORD?: string;
+  GMAIL_CLIENT_ID?: string;
+  GMAIL_CLIENT_SECRET?: string;
+  GMAIL_REFRESH_TOKEN?: string;
+  GMAIL_SENDER_EMAIL?: string;
 }
 
 function json(data: unknown, init: ResponseInit = {}): Response {
@@ -104,6 +109,39 @@ async function logAdminActivity(
   } catch {
     // Nunca deixar uma falha no log impedir a ação principal --
     // é informação de apoio, não crítica para o funcionamento.
+  }
+}
+
+/**
+ * Tenta enviar o código de confirmação/login por email a sério. Se os
+ * secrets do Gmail ainda não estiverem configurados, ou se o envio
+ * falhar por qualquer razão (token expirado, erro de rede, etc.),
+ * devolve o código no próprio JSON de resposta (devCode) -- o mesmo
+ * comportamento que já existia antes desta funcionalidade, para nunca
+ * bloquear o registo/login por causa de um problema no envio de email.
+ *
+ * Isto significa que, enquanto os secrets GMAIL_* não estiverem
+ * definidos, o site continua a funcionar exatamente como antes.
+ */
+async function sendCodeOrFallback(
+  env: Env,
+  toEmail: string,
+  code: string
+): Promise<{ sentByEmail: boolean; devCode?: string }> {
+  if (!gmailConfigured(env)) {
+    return { sentByEmail: false, devCode: code };
+  }
+
+  try {
+    await sendEmail(env, toEmail, "Código de acesso — Stock Rede Renault", buildVerificationEmailBody(code));
+    return { sentByEmail: true };
+  } catch (err) {
+    // Não deixamos o utilizador bloqueado por uma falha pontual do
+    // Gmail -- mostra o código na mesma, tal como antes de existir
+    // envio real. O erro fica só nos logs do Worker (visíveis no
+    // dashboard Cloudflare), não é exposto ao utilizador.
+    console.error("Falha ao enviar email de código:", err);
+    return { sentByEmail: false, devCode: code };
   }
 }
 
@@ -268,6 +306,7 @@ export default {
       // o primeiro código de confirmação, para o frontend pedir logo a
       // seguir ao registo — evita um passo extra de "pedir código".
       const confirmationCode = await createLoginCode(env.DB, dealerId as number);
+      const emailResult = await sendCodeOrFallback(env, body.email, confirmationCode);
 
       return json({
         dealerId,
@@ -276,7 +315,7 @@ export default {
         message: verification.verified
           ? "Registo confirmado automaticamente contra a lista oficial Renault. Falta só confirmar o email."
           : "Registo criado. A tua conta fica pendente de confirmação manual — vamos verificar os teus dados brevemente. Entretanto, confirma o email.",
-        devCode: confirmationCode, // REMOVER quando o envio por email estiver ligado
+        ...emailResult,
       });
     }
 
@@ -352,15 +391,13 @@ export default {
       }
 
       const code = await createLoginCode(env.DB, dealer.id);
+      const emailResult = await sendCodeOrFallback(env, body.email, code);
 
-      // NOTA DE IMPLEMENTAÇÃO: falta ligar a um serviço real de email
-      // (ex: Resend). Por agora devolve-se o código na resposta
-      // para testar o fluxo end-to-end sem essa integração.
       return json({
         dealerId: dealer.id,
         needsEmailConfirmation: !dealer.email_confirmed,
-        message: "Código gerado.",
-        devCode: code, // REMOVER quando o envio por email estiver ligado
+        message: emailResult.sentByEmail ? "Código enviado por email." : "Código gerado.",
+        ...emailResult,
       });
     }
 
@@ -1133,9 +1170,9 @@ export default {
       const dealerId = Number(resendMatch[1]);
 
       const dealer = await env.DB
-        .prepare("SELECT id, email_confirmed FROM dealers WHERE id = ?")
+        .prepare("SELECT id, email, email_confirmed FROM dealers WHERE id = ?")
         .bind(dealerId)
-        .first<{ id: number; email_confirmed: number }>();
+        .first<{ id: number; email: string; email_confirmed: number }>();
 
       if (!dealer) return json({ error: "Conta não encontrada." }, { status: 404 });
       if (dealer.email_confirmed) {
@@ -1143,10 +1180,12 @@ export default {
       }
 
       const code = await createLoginCode(env.DB, dealer.id);
+      const emailResult = await sendCodeOrFallback(env, dealer.email, code);
 
-      // NOTA DE IMPLEMENTAÇÃO: falta ligar a um serviço real de email
-      // (ex: Resend) — mesma limitação do fluxo normal de registo.
-      return json({ message: "Novo código gerado.", devCode: code });
+      return json({
+        message: emailResult.sentByEmail ? "Novo código enviado por email." : "Novo código gerado.",
+        ...emailResult,
+      });
     }
 
     // ---------- geocodificar a morada de um concessionário ----------

@@ -131,12 +131,39 @@ UPDATE dealers SET email = 'email-correto@exemplo.pt', email_confirmed = 0 WHERE
 `email_confirmed = 0` obriga a nova confirmação, para garantir que o
 email corrigido é mesmo válido antes de voltar a servir para login.
 
-## Ligar envio de email real (por fazer)
+## Envio de email real via Gmail API
 
-O código de confirmação ainda aparece só na resposta da API
-(`devCode`, ver `NOTA DE IMPLEMENTAÇÃO` em `worker/src/index.ts`) —
-bom para testar, não pronto para produção com concessionários reais.
-Falta ligar a um serviço tipo Resend.
+O código de confirmação/login já tenta enviar por email a sério,
+usando a Gmail API (não Resend — decidido não pagar domínio próprio,
+ver histórico de conversa). Implementado em `worker/src/email.ts`.
+
+**Falta só o passo final: definir os 4 secrets no Worker.** Sem eles,
+o sistema cai automaticamente para o comportamento antigo (`devCode`
+visível na resposta) — nada quebra enquanto não configurares isto,
+mas também não envia email real até o fazeres.
+
+```bash
+cd worker
+wrangler secret put GMAIL_CLIENT_ID
+wrangler secret put GMAIL_CLIENT_SECRET
+wrangler secret put GMAIL_REFRESH_TOKEN
+wrangler secret put GMAIL_SENDER_EMAIL
+```
+
+Os 4 valores foram obtidos seguindo `NOTES_gmail_api_setup.md` (guia
+completo de configuração na Google Cloud Console + OAuth Playground,
+gerado numa sessão anterior — conta Gmail dedicada, scope
+`gmail.send`, app em modo "In production" para o refresh token nunca
+expirar).
+
+**Usa sempre `wrangler secret put`, nunca o dashboard Cloudflare** —
+mesmo aviso do `ADMIN_PASSWORD`: secrets definidos pelo dashboard são
+apagados no deploy seguinte feito pelo Workers Builds.
+
+Depois de definidos os 4 secrets, testa: regista uma conta nova (ou
+usa "Reenviar código" no admin numa conta com email por confirmar) e
+confirma que o email chega à caixa de correio, em vez de aparecer
+`devCode` na resposta.
 
 ## Antes de divulgar a plataforma
 
@@ -145,7 +172,7 @@ Falta ligar a um serviço tipo Resend.
 - [ ] Rever o texto do email de apresentação, incluir o link direto
       para `conta.html`. Se houver password de registo definida
       (painel de admin → Configurações), incluir no email.
-- [ ] Ligar envio de email real (ver acima).
+- [x] Ligar envio de email real (ver acima) — falta só os secrets.
 
 ## Nome da empresa no registo — nota prática
 
