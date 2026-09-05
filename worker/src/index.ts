@@ -12,6 +12,8 @@
 //   PATCH /api/listings/:id           — atualiza estado (sold/removed) (autenticado, dono)
 //   GET  /api/listings/browse         — lista todas as peças ativas (sem pesquisa)
 //   GET  /api/listings/map            — concessionários com peças ativas, agrupados, com coordenadas
+//   POST /api/listings/:id/photos     — regista uma foto já enviada ao ImgBB (autenticado, dono)
+//   DELETE /api/listings/:id/photos/:photoId — remove uma foto (autenticado, dono)
 //   GET  /api/listings/search?ref=... — pesquisa por referência
 //   GET  /api/listings/mine           — listagens do próprio concessionário (autenticado)
 //
@@ -542,6 +544,70 @@ export default {
       return json({ message: "Anúncio atualizado." });
     }
 
+    // ---------- registar uma foto (já enviada ao ImgBB pelo browser) ----------
+    const photosMatch = path.match(/^\/api\/listings\/(\d+)\/photos$/);
+    if (photosMatch && request.method === "POST") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+      const dealerId = dealerIdOrResponse;
+      const listingId = Number(photosMatch[1]);
+
+      const listing = await env.DB
+        .prepare("SELECT dealer_id FROM parts_listings WHERE id = ?")
+        .bind(listingId)
+        .first<{ dealer_id: number }>();
+
+      if (!listing) return json({ error: "Anúncio não encontrado." }, { status: 404 });
+      if (listing.dealer_id !== dealerId) {
+        return json({ error: "Não podes adicionar fotos a um anúncio que não é teu." }, { status: 403 });
+      }
+
+      const body = await request.json<any>().catch(() => null);
+      if (!body?.url) return json({ error: "URL da foto é obrigatório." }, { status: 400 });
+
+      // Limite de fotos por peça, para não deixar ninguém publicar
+      // dezenas de imagens numa peça só -- 6 chega bem para mostrar
+      // o essencial (estado, embalagem, referência gravada na peça).
+      const existingCount = await env.DB
+        .prepare("SELECT COUNT(*) AS total FROM listing_photos WHERE listing_id = ?")
+        .bind(listingId)
+        .first<{ total: number }>();
+
+      if ((existingCount?.total || 0) >= 6) {
+        return json({ error: "Limite de 6 fotos por peça atingido." }, { status: 400 });
+      }
+
+      const result = await env.DB
+        .prepare("INSERT INTO listing_photos (listing_id, url, thumb_url, delete_url) VALUES (?, ?, ?, ?)")
+        .bind(listingId, body.url, body.thumbUrl || null, body.deleteUrl || null)
+        .run();
+
+      return json({ photoId: result.meta.last_row_id, message: "Foto adicionada." });
+    }
+
+    // ---------- eliminar uma foto ----------
+    const deletePhotoMatch = path.match(/^\/api\/listings\/(\d+)\/photos\/(\d+)$/);
+    if (deletePhotoMatch && request.method === "DELETE") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+      const dealerId = dealerIdOrResponse;
+      const listingId = Number(deletePhotoMatch[1]);
+      const photoId = Number(deletePhotoMatch[2]);
+
+      const listing = await env.DB
+        .prepare("SELECT dealer_id FROM parts_listings WHERE id = ?")
+        .bind(listingId)
+        .first<{ dealer_id: number }>();
+
+      if (!listing) return json({ error: "Anúncio não encontrado." }, { status: 404 });
+      if (listing.dealer_id !== dealerId) {
+        return json({ error: "Não podes remover fotos de um anúncio que não é teu." }, { status: 403 });
+      }
+
+      await env.DB.prepare("DELETE FROM listing_photos WHERE id = ? AND listing_id = ?").bind(photoId, listingId).run();
+      return json({ message: "Foto removida." });
+    }
+
     // ---------- eliminar peça definitivamente ----------
     if (patchMatch && request.method === "DELETE") {
       const dealerIdOrResponse = await requireDealer(request, env);
@@ -571,7 +637,8 @@ export default {
           `SELECT
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
              d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified, d.lat, d.lon,
-             (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
+             (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
+             (SELECT GROUP_CONCAT(lp.url, '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photo_urls
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            WHERE pl.status = 'active'
@@ -652,7 +719,8 @@ export default {
           `SELECT DISTINCT
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
              d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified,
-             (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
+             (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
+             (SELECT GROUP_CONCAT(lp.url, '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photo_urls
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            LEFT JOIN listing_alt_references alt ON alt.listing_id = pl.id
@@ -674,7 +742,8 @@ export default {
       const rows = await env.DB
         .prepare(
           `SELECT pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.status, pl.created_at,
-                  (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
+                  (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
+                  (SELECT GROUP_CONCAT(lp.id || ':' || lp.url, '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_with_ids
            FROM parts_listings pl WHERE pl.dealer_id = ? ORDER BY pl.created_at DESC`
         )
         .bind(dealerIdOrResponse)

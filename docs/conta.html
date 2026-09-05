@@ -117,6 +117,18 @@
   .listing-notes { color: var(--ink-faint); font-size: 0.78rem; font-style: italic; margin-top: 0.15rem; }
   .listing-alt-refs { color: var(--ink-soft); font-size: 0.76rem; font-family: var(--mono); margin-top: 0.1rem; }
 
+  .listing-photos { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+  .listing-photo-item { position: relative; width: 4rem; height: 4rem; }
+  .listing-photo-item img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line);
+  }
+  .listing-photo-remove {
+    position: absolute; top: -0.35rem; right: -0.35rem; width: 1.2rem; height: 1.2rem;
+    background: var(--danger); color: white; border: none; border-radius: 50%;
+    cursor: pointer; font-size: 0.65rem; display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .edit-photo-status { font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.3rem; }
+
   .listing-controls { display: flex; align-items: center; gap: 0.4rem; }
   .qty-btn {
     width: 1.8rem; height: 1.8rem; border: 1px solid var(--line); border-radius: var(--radius);
@@ -318,6 +330,7 @@
 
 <script>
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
+const IMGBB_API_KEY = "11660b9bd954ae9791e204c5360ab132";
 let pendingDealerId = null;
 
 // ---------- componente de tags (referências de substituição) ----------
@@ -710,6 +723,14 @@ function renderMyListings(listings, token) {
 
     const statusLabel = { active: "disponível", sold: "vendida" }[l.status] || l.status;
 
+    // photos_with_ids vem como "id1:url1|||id2:url2|||...". Usa
+    // indexOf/slice (não split(':')) porque a própria URL tem ':'
+    // lá dentro (https://...) -- split(':') simples partiria errado.
+    const photos = (l.photos_with_ids || "").split("|||").filter(Boolean).map(item => {
+      const colonIndex = item.indexOf(":");
+      return { id: item.slice(0, colonIndex), url: item.slice(colonIndex + 1) };
+    });
+
     row.innerHTML = `
       <div class="listing-main">
         <div class="listing-top">
@@ -727,6 +748,16 @@ function renderMyListings(listings, token) {
             <button class="delete-btn" data-action="delete" data-id="${l.id}" title="Eliminar">✕</button>
           </div>
         </div>
+        ${photos.length > 0 ? `
+          <div class="listing-photos" id="listing-photos-${l.id}">
+            ${photos.map(p => `
+              <div class="listing-photo-item">
+                <a href="${escapeAttrLocal(p.url)}" target="_blank" rel="noopener"><img src="${escapeAttrLocal(p.url)}" loading="lazy" /></a>
+                <button type="button" class="listing-photo-remove" data-listing-id="${l.id}" data-photo-id="${p.id}" title="Eliminar foto">✕</button>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
         <div class="listing-edit-form" id="edit-form-${l.id}" style="display: none;">
           <input type="text" class="edit-description" placeholder="Descrição" value="${escapeAttrLocal(l.description || "")}" />
           <label class="edit-form-label">Referências de substituição</label>
@@ -736,6 +767,9 @@ function renderMyListings(listings, token) {
             <button type="button" class="tag-add-btn" data-add-tag-for="${l.id}">+ Adicionar</button>
           </div>
           <textarea class="edit-notes" rows="2" placeholder="Notas (ex: embalagem selada)">${escapeHtmlLocal(l.notes || "")}</textarea>
+          <label class="edit-form-label">Adicionar mais fotos (${photos.length}/6)</label>
+          <input type="file" class="edit-photo-input" id="edit-photo-input-${l.id}" accept="image/*" multiple ${photos.length >= 6 ? "disabled" : ""} />
+          <div class="edit-photo-status" id="edit-photo-status-${l.id}"></div>
           <div class="listing-edit-actions">
             <button class="edit-save-btn" data-id="${l.id}">Guardar</button>
             <button class="edit-cancel-btn" data-id="${l.id}">Cancelar</button>
@@ -751,6 +785,59 @@ function renderMyListings(listings, token) {
     const manager = createTagsManager(`edit-alt-refs-input-${l.id}`, `edit-tags-list-${l.id}`);
     manager.setTags(existingAltRefs);
     altRefsManagers[l.id] = manager;
+
+    // Botão de eliminar cada foto já associada.
+    const photosContainer = document.getElementById(`listing-photos-${l.id}`);
+    if (photosContainer) {
+      photosContainer.querySelectorAll(".listing-photo-remove").forEach(btn => {
+        btn.addEventListener("click", () => deleteListingPhoto(btn.dataset.listingId, btn.dataset.photoId, token));
+      });
+    }
+
+    // Upload de mais fotos a uma peça já publicada, direto para o
+    // ImgBB (mesma lógica de publicar.html), associando de seguida
+    // ao listing_id via POST /photos.
+    const editPhotoInput = document.getElementById(`edit-photo-input-${l.id}`);
+    if (editPhotoInput) {
+      editPhotoInput.addEventListener("change", async () => {
+        const files = Array.from(editPhotoInput.files || []);
+        editPhotoInput.value = "";
+        const statusEl = document.getElementById(`edit-photo-status-${l.id}`);
+
+        for (const file of files) {
+          statusEl.textContent = "A enviar foto…";
+          try {
+            const formData = new FormData();
+            formData.append("image", file);
+            const uploadRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+              method: "POST",
+              body: formData,
+            });
+            const uploadData = await uploadRes.json();
+
+            if (!uploadData.success) {
+              statusEl.textContent = "Não foi possível enviar a foto.";
+              continue;
+            }
+
+            await fetch(`${API_BASE}/api/listings/${l.id}/photos`, {
+              method: "POST",
+              headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                url: uploadData.data.url,
+                thumbUrl: uploadData.data.thumb?.url || uploadData.data.url,
+                deleteUrl: uploadData.data.delete_url || null,
+              }),
+            });
+          } catch (err) {
+            statusEl.textContent = "Erro de ligação ao enviar a foto.";
+          }
+        }
+
+        statusEl.textContent = "Foto adicionada.";
+        loadDashboard(); // recarrega para mostrar a foto nova na galeria
+      });
+    }
   }
 
   container.querySelectorAll("[data-add-tag-for]").forEach(btn => {
@@ -788,6 +875,15 @@ async function saveListingEdit(listingId, token) {
     method: "PATCH",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({ description, notes, altReferences }),
+  });
+  loadDashboard();
+}
+
+async function deleteListingPhoto(listingId, photoId, token) {
+  if (!confirm("Eliminar esta foto?")) return;
+  await fetch(`${API_BASE}/api/listings/${listingId}/photos/${photoId}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
   });
   loadDashboard();
 }

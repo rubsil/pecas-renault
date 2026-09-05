@@ -194,6 +194,20 @@
     grid-column: 1 / -1;
   }
 
+  .result-photos {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .result-photos img {
+    width: 4.5rem;
+    height: 4.5rem;
+    object-fit: cover;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+  }
+
   .result-qty {
     font-family: var(--mono);
     font-size: 0.85rem;
@@ -469,12 +483,20 @@ function renderResults(results, emptyMessage) {
       ? `<span class="badge-distance">a ${r.distance_km} km</span>`
       : "";
 
+    const photoUrls = r.photo_urls ? r.photo_urls.split("|||") : [];
+    const photosHtml = photoUrls.length > 0
+      ? `<div class="result-photos">${photoUrls.map(url =>
+          `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" loading="lazy" /></a>`
+        ).join("")}</div>`
+      : "";
+
     card.innerHTML = `
       <div class="result-ref">${escapeHtml(r.reference)}</div>
       <div class="result-qty">${r.quantity} un.</div>
       ${r.description ? `<div class="result-desc">${escapeHtml(r.description)}</div>` : ""}
       ${r.alt_references ? `<div class="result-alt-refs">Substitui: ${escapeHtml(r.alt_references)}</div>` : ""}
       ${r.notes ? `<div class="result-notes">${escapeHtml(r.notes)}</div>` : ""}
+      ${photosHtml}
       <div class="result-dealer">
         <div class="result-dealer-name">
           <strong>${escapeHtml(r.company_name)}</strong>

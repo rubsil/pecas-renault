@@ -105,3 +105,15 @@ CREATE TABLE IF NOT EXISTS listing_alt_references (
 
 CREATE INDEX IF NOT EXISTS idx_alt_ref_normalized ON listing_alt_references(reference_normalized);
 CREATE INDEX IF NOT EXISTS idx_alt_ref_listing ON listing_alt_references(listing_id);
+
+-- Fotos das peças, via ImgBB (ver worker/migrations/0008).
+CREATE TABLE IF NOT EXISTS listing_photos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  listing_id INTEGER NOT NULL REFERENCES parts_listings(id),
+  url TEXT NOT NULL,
+  thumb_url TEXT,
+  delete_url TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_photos_listing ON listing_photos(listing_id);

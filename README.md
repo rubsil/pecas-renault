@@ -69,6 +69,10 @@ tempo real.
   todos os concessionários com stock disponível — um pin por loja,
   com as referências que tem publicadas.
 
+- **Fotos das peças.** Upload opcional, feito diretamente do browser
+  para um serviço de alojamento de imagens externo — a base de dados
+  do projeto guarda só o link, não os ficheiros em si.
+
 - **Sem scraping.** Ao contrário de abordagens que dependem de extrair
   dados de sites de terceiros (frágil, muda sem aviso, levanta questões
   legais), a única fonte externa usada é a lista pública e oficial de

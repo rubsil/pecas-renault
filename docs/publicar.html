@@ -86,6 +86,23 @@
   .tag-add-btn:hover { background: var(--accent); }
   .tag-add-btn:active { background: var(--accent-text); }
 
+  .photo-preview-list { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.75rem; }
+  .photo-preview-item { position: relative; width: 5.5rem; height: 5.5rem; }
+  .photo-preview-item img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line);
+  }
+  .photo-preview-item.uploading img { opacity: 0.4; }
+  .photo-preview-spinner {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; color: var(--ink-soft); font-weight: 700;
+  }
+  .photo-preview-remove {
+    position: absolute; top: -0.4rem; right: -0.4rem; width: 1.4rem; height: 1.4rem;
+    background: var(--danger); color: white; border: none; border-radius: 50%;
+    cursor: pointer; font-size: 0.75rem; display: flex; align-items: center; justify-content: center;
+  }
+  .photo-preview-remove:hover { background: var(--danger); opacity: 0.85; }
+
   .row-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
   button.submit {
@@ -159,6 +176,11 @@
 
     <label for="notes">Notas (opcional)</label>
     <textarea id="notes" rows="2" placeholder="ex: embalagem selada, nunca montada"></textarea>
+
+    <label for="photo-input">Fotos (opcional, até 6)</label>
+    <input type="file" id="photo-input" accept="image/*" multiple />
+    <div class="hint" id="photo-upload-status" style="margin-top: 0.3rem;">Ajuda quem procura a confirmar que é mesmo a peça certa.</div>
+    <div class="photo-preview-list" id="photo-preview-list"></div>
 
     <button type="submit" class="submit">Publicar</button>
     <div class="message" id="publish-message"></div>
@@ -246,6 +268,91 @@ function escapeHtmlLocal2(str) {
 const altRefsManager = createTagsManager("alt-references-input", "tags-list");
 document.getElementById("alt-references-add-btn").addEventListener("click", () => altRefsManager.addFromInput());
 
+// ---------- upload de fotos (direto para o ImgBB, não passa pelo nosso Worker) ----------
+const IMGBB_API_KEY = "11660b9bd954ae9791e204c5360ab132";
+const MAX_PHOTOS = 6;
+
+// Guarda as fotos já enviadas com sucesso -- {url, thumbUrl, deleteUrl}.
+// Só depois de publicar a peça é que estes URLs são associados a ela
+// (a peça ainda não existe enquanto se está a escolher as fotos).
+let uploadedPhotos = [];
+
+const photoInput = document.getElementById("photo-input");
+const photoPreviewList = document.getElementById("photo-preview-list");
+const photoUploadStatus = document.getElementById("photo-upload-status");
+
+photoInput.addEventListener("change", async () => {
+  const files = Array.from(photoInput.files || []);
+  photoInput.value = ""; // permite escolher o mesmo ficheiro outra vez, se for removido depois
+
+  for (const file of files) {
+    if (uploadedPhotos.length >= MAX_PHOTOS) {
+      photoUploadStatus.textContent = `Limite de ${MAX_PHOTOS} fotos atingido.`;
+      break;
+    }
+    await uploadOnePhoto(file);
+  }
+});
+
+async function uploadOnePhoto(file) {
+  // Mostra já uma miniatura local (antes mesmo de o upload terminar),
+  // com um indicador de progresso -- sensação de resposta imediata.
+  const localUrl = URL.createObjectURL(file);
+  const item = document.createElement("div");
+  item.className = "photo-preview-item uploading";
+  item.innerHTML = `<img src="${localUrl}" /><div class="photo-preview-spinner">…</div>`;
+  photoPreviewList.appendChild(item);
+
+  try {
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      item.remove();
+      photoUploadStatus.textContent = "Não foi possível enviar uma das fotos. Tenta novamente.";
+      return;
+    }
+
+    uploadedPhotos.push({
+      url: data.data.url,
+      thumbUrl: data.data.thumb?.url || data.data.url,
+      deleteUrl: data.data.delete_url || null,
+    });
+
+    // Troca a miniatura local pela definitiva (a do ImgBB), remove o spinner.
+    item.classList.remove("uploading");
+    item.innerHTML = `
+      <img src="${data.data.thumb?.url || data.data.url}" />
+      <button type="button" class="photo-preview-remove" data-index="${uploadedPhotos.length - 1}">✕</button>
+    `;
+    item.querySelector(".photo-preview-remove").addEventListener("click", (e) => {
+      const idx = Number(e.target.dataset.index);
+      uploadedPhotos.splice(idx, 1);
+      item.remove();
+      renumberPhotoRemoveButtons();
+    });
+
+    photoUploadStatus.textContent = `${uploadedPhotos.length} de ${MAX_PHOTOS} fotos.`;
+  } catch (err) {
+    item.remove();
+    photoUploadStatus.textContent = "Erro de ligação ao enviar a foto.";
+  }
+}
+
+// Depois de remover uma foto do meio da lista, os índices guardados
+// nos botões seguintes ficam desalinhados com uploadedPhotos -- isto
+// corrige-os todos de uma vez, em vez de complicar a lógica de remoção.
+function renumberPhotoRemoveButtons() {
+  const buttons = photoPreviewList.querySelectorAll(".photo-preview-remove");
+  buttons.forEach((btn, i) => { btn.dataset.index = i; });
+}
+
 async function init() {
   if (!token) return;
 
@@ -300,10 +407,29 @@ document.getElementById("publish-form").addEventListener("submit", async (e) => 
       return;
     }
 
+    // A peça já existe (temos o listingId) -- associa agora as fotos
+    // que já foram enviadas ao ImgBB enquanto a pessoa preenchia o
+    // formulário. Falhas aqui não desfazem a publicação da peça em
+    // si, só ficam sem essa foto associada (aviso, não bloqueio).
+    for (const photo of uploadedPhotos) {
+      try {
+        await fetch(`${API_BASE}/api/listings/${data.listingId}/photos`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ url: photo.url, thumbUrl: photo.thumbUrl, deleteUrl: photo.deleteUrl }),
+        });
+      } catch (err) {
+        // não bloqueia o resto -- a peça já está publicada de qualquer forma
+      }
+    }
+
     showMessage(msg, "Peça publicada. Já aparece nas pesquisas.", "success");
     document.getElementById("publish-form").reset();
     document.getElementById("quantity").value = 1;
     altRefsManager.setTags([]);
+    uploadedPhotos = [];
+    photoPreviewList.innerHTML = "";
+    photoUploadStatus.textContent = "Ajuda quem procura a confirmar que é mesmo a peça certa.";
   } catch (err) {
     showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
   }

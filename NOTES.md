@@ -117,6 +117,7 @@ D1 → `peca-troca-db` → Console). Histórico:
 - `0005_admin_activity_log.sql` — tabela `admin_activity_log`
 - `0006_listing_alt_references.sql` — tabela `listing_alt_references`
 - `0007_official_dealers_coordinates.sql` — colunas `lat`/`lon`/`geocoded_at` na lista oficial
+- `0008_listing_photos.sql` — tabela `listing_photos` (fotos via ImgBB)
 
 ## Correções manuais na base de dados
 
@@ -198,6 +199,26 @@ dashboard Cloudflare (mostra o histórico de execuções passadas).
       para `conta.html`. Se houver password de registo definida
       (painel de admin → Configurações), incluir no email.
 - [x] Ligar envio de email real — concluído e testado em produção.
+
+## Fotos das peças (ImgBB)
+
+O upload de fotos ao publicar/editar uma peça é feito **diretamente do
+browser para a API do ImgBB** (`api.imgbb.com/1/upload`) -- a imagem
+nunca passa pelo nosso Worker, evita limites de tamanho de pedido e
+poupa a nossa largura de banda. O Worker só guarda o link que o ImgBB
+devolve (`worker/migrations/0008_listing_photos.sql`).
+
+**A API key do ImgBB está visível no código do frontend** (`docs/publicar.html`
+e `docs/conta.html`, variável `IMGBB_API_KEY`) -- isto é intencional,
+não um esquecimento. Como o upload acontece diretamente do browser da
+pessoa, a chave tem de estar acessível ali; não há como escondê-la
+sem fazer o upload passar pelo Worker (o que perderíamos a vantagem
+de não sobrecarregar o Worker com uploads de imagens). A chave do
+ImgBB só permite fazer uploads, não dá acesso a nada sensível nem
+à conta em si -- risco aceitável para este caso.
+
+Limite de 6 fotos por peça, controlado no backend (`POST
+/api/listings/:id/photos` recusa a 7ª).
 
 ## Nome da empresa no registo — nota prática
 
