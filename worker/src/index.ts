@@ -50,7 +50,7 @@ import { verifyAgainstOfficialList } from "./verification";
 import { createLoginCode, redeemLoginCode, resolveSession } from "./auth";
 import { checkAdminAuth } from "./admin";
 import { geocodeAddress, distanceKm, sleep } from "./geocoding";
-import { sendEmail, buildVerificationEmailBody, gmailConfigured } from "./email";
+import { sendEmail, buildVerificationEmailBody, gmailConfigured, getAccessToken } from "./email";
 
 export interface Env {
   DB: D1Database;
@@ -1311,5 +1311,24 @@ export default {
     }
 
     return json({ error: "Rota não encontrada." }, { status: 404 });
+  },
+
+  /**
+   * Cron Trigger (ver [triggers] em wrangler.toml, corre de 4 em 4
+   * meses). Só troca o refresh token do Gmail por um access token
+   * novo -- não envia nenhum email, só "usa" o refresh token para a
+   * Google não o considerar inativo e o invalidar ao fim de 6 meses.
+   * Falha aqui não é crítica (login normal de qualquer concessionário
+   * já tem o mesmo efeito) -- só regista o erro nos logs do Worker.
+   */
+  async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    if (!gmailConfigured(env)) return; // nada a manter vivo se ainda não estiver configurado
+
+    try {
+      await getAccessToken(env);
+      console.log("Cron: refresh token do Gmail renovado com sucesso (mantém-se ativo).");
+    } catch (err) {
+      console.error("Cron: falha ao renovar refresh token do Gmail:", err);
+    }
   },
 };

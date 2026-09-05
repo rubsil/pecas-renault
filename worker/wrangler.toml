@@ -6,3 +6,13 @@ compatibility_date = "2026-08-01"
 binding = "DB"
 database_name = "peca-troca-db"
 database_id = "9ed67b74-11d7-4352-a0e4-5e286591cd2f"
+
+[triggers]
+# Corre dia 1 às 04:00 UTC, em Janeiro, Maio e Setembro (de 4 em 4
+# meses). Só troca o refresh token do Gmail por um access token novo
+# -- essa troca em si já conta como "uso" perante a Google, o que
+# evita o refresh token expirar por 6 meses de inatividade (ver
+# NOTES.md). Login normal de qualquer concessionário já faz o mesmo,
+# isto é só uma rede de segurança para o caso de a plataforma ficar
+# sem uso durante muito tempo.
+crons = ["0 4 1 1,5,9 *"]

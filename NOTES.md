@@ -167,6 +167,29 @@ usa "Reenviar código" no admin numa conta com email por confirmar) e
 confirma que o email chega à caixa de correio, em vez de aparecer
 `devCode` na resposta.
 
+### Manter o refresh token vivo (Cron Trigger)
+
+O refresh token do Gmail é invalidado pela Google se não for usado
+durante 6 meses seguidos. Login normal de qualquer concessionário já
+"usa" o token (a troca por access token conta como uso, mesmo que o
+email não chegue a ser enviado por outra razão), por isso isto só
+seria um problema real se a plataforma ficasse sem nenhum login
+durante meio ano inteiro -- pouco provável, mas fica coberto de
+qualquer forma.
+
+Um Cron Trigger (`[triggers]` em `worker/wrangler.toml`) corre no dia
+1 de Janeiro, Maio e Setembro, às 4h UTC (de 4 em 4 meses, com
+margem de sobra antes do limite de 6). Só troca o refresh token por
+um access token novo -- não envia nenhum email, só "toca" no token
+para a Google não o considerar inativo. Implementado no handler
+`scheduled()` em `worker/src/index.ts`.
+
+Isto é automático depois do deploy -- Cloudflare regista o Cron
+Trigger sozinho a partir do que está em `wrangler.toml`, sem precisar
+de nenhum passo manual extra. Para confirmar que está a correr, ver
+Workers & Pages → `pecas-renault` → separador "Cron Triggers" no
+dashboard Cloudflare (mostra o histórico de execuções passadas).
+
 ## Antes de divulgar a plataforma
 
 - [ ] Publicar 15-20 referências próprias, para a plataforma não

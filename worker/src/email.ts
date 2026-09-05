@@ -31,8 +31,13 @@ export function gmailConfigured(env: GmailEnv): boolean {
  * Chamado sempre que precisamos de enviar um email -- gerar um novo
  * de cada vez é mais simples e seguro do que tentar cachear entre
  * pedidos diferentes do Worker (que não partilham memória).
+ *
+ * Exportada porque também é chamada isoladamente pelo Cron Trigger
+ * (ver scheduled() em index.ts) só para "manter vivo" o refresh
+ * token -- a Google invalida-o se não for usado durante 6 meses
+ * seguidos, e esta troca em si já conta como uso.
  */
-async function getAccessToken(env: GmailEnv): Promise<string> {
+export async function getAccessToken(env: GmailEnv): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -116,7 +121,9 @@ export function buildVerificationEmailBody(code: string): string {
   return [
     "Olá,",
     "",
-    `O teu código de acesso à Stock Rede Renault é: ${code}`,
+    "O teu código de acesso à Stock Rede Renault é:",
+    "",
+    code,
     "",
     "Este código é válido por 15 minutos.",
     "",
