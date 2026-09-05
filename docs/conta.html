@@ -610,7 +610,7 @@ document.getElementById("btn-request-code").addEventListener("click", async () =
     loginNeedsEmailConfirmation = !!data.needsEmailConfirmation;
     document.getElementById("login-step-phone").style.display = "none";
     document.getElementById("login-step-code").style.display = "block";
-    showMessage(msg, data.devCode ? `Código de teste: ${data.devCode}` : "Código enviado.", "success");
+    showMessage(msg, data.devCode ? `Código de teste: ${data.devCode}` : "Código enviado para o email.", "success");
   } catch (err) {
     showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
   }
