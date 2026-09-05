@@ -133,14 +133,22 @@ email corrigido é mesmo válido antes de voltar a servir para login.
 
 ## Envio de email real via Gmail API
 
-O código de confirmação/login já tenta enviar por email a sério,
-usando a Gmail API (não Resend — decidido não pagar domínio próprio,
-ver histórico de conversa). Implementado em `worker/src/email.ts`.
+**Concluído e testado** — o código de confirmação/login já é enviado
+por email a sério, usando a Gmail API (não Resend — decidido não
+pagar domínio próprio, ver histórico de conversa). Implementado em
+`worker/src/email.ts`. Confirmado a funcionar em produção: código
+recebido por email, usado para login com sucesso.
 
-**Falta só o passo final: definir os 4 secrets no Worker.** Sem eles,
-o sistema cai automaticamente para o comportamento antigo (`devCode`
-visível na resposta) — nada quebra enquanto não configurares isto,
-mas também não envia email real até o fazeres.
+Se um dia for preciso repetir a configuração (ex: gerar um novo
+refresh token, ou configurar isto noutra conta/projeto), o guia
+completo fica em `NOTES_gmail_api_setup.md`.
+
+Nota registada durante a configuração: da primeira vez que se gerou o
+Refresh Token, a troca por Access Token falhava com `invalid_grant`.
+Gerar um novo Refresh Token do zero (repetir só a parte do OAuth
+Playground: Authorize APIs → Exchange authorization code for tokens)
+resolveu — a causa exata não ficou 100% confirmada, mas o processo é
+rápido de repetir se voltar a acontecer.
 
 ```bash
 cd worker
@@ -149,12 +157,6 @@ wrangler secret put GMAIL_CLIENT_SECRET
 wrangler secret put GMAIL_REFRESH_TOKEN
 wrangler secret put GMAIL_SENDER_EMAIL
 ```
-
-Os 4 valores foram obtidos seguindo `NOTES_gmail_api_setup.md` (guia
-completo de configuração na Google Cloud Console + OAuth Playground,
-gerado numa sessão anterior — conta Gmail dedicada, scope
-`gmail.send`, app em modo "In production" para o refresh token nunca
-expirar).
 
 **Usa sempre `wrangler secret put`, nunca o dashboard Cloudflare** —
 mesmo aviso do `ADMIN_PASSWORD`: secrets definidos pelo dashboard são
@@ -172,7 +174,7 @@ confirma que o email chega à caixa de correio, em vez de aparecer
 - [ ] Rever o texto do email de apresentação, incluir o link direto
       para `conta.html`. Se houver password de registo definida
       (painel de admin → Configurações), incluir no email.
-- [x] Ligar envio de email real (ver acima) — falta só os secrets.
+- [x] Ligar envio de email real — concluído e testado em produção.
 
 ## Nome da empresa no registo — nota prática
 
