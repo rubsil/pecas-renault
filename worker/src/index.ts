@@ -21,6 +21,7 @@
 //
 //   POST /api/alerts                  — subscreve alerta de referência (autenticado)
 //   GET  /api/alerts/mine             — alertas do próprio concessionário (autenticado)
+//   DELETE /api/alerts/:id            — cancela o próprio alerta (autenticado, dono)
 //
 //   Painel de administrador (protegido por header x-admin-password):
 //   GET    /api/admin/stats                 — estatísticas rápidas (contas, verificados, peças)
@@ -774,6 +775,18 @@ export default {
       if (!body?.reference) return json({ error: "Referência é obrigatória." }, { status: 400 });
 
       const referenceNormalized = normalizeReference(body.reference);
+
+      // Evita duplicados -- sem isto, pedir o mesmo alerta duas vezes
+      // cria duas linhas, e a pessoa recebia notificação a dobrar.
+      const existing = await env.DB
+        .prepare("SELECT id FROM reference_alerts WHERE dealer_id = ? AND reference_normalized = ?")
+        .bind(dealerId, referenceNormalized)
+        .first<{ id: number }>();
+
+      if (existing) {
+        return json({ error: "Já tens um alerta para esta referência." }, { status: 409 });
+      }
+
       await env.DB
         .prepare("INSERT INTO reference_alerts (dealer_id, reference_normalized) VALUES (?, ?)")
         .bind(dealerId, referenceNormalized)
@@ -796,6 +809,28 @@ export default {
         .all();
 
       return json({ results: rows.results || [] });
+    }
+
+    // ---------- eliminar o próprio alerta ----------
+    const ownAlertMatch = path.match(/^\/api\/alerts\/(\d+)$/);
+    if (ownAlertMatch && request.method === "DELETE") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+      const alertId = Number(ownAlertMatch[1]);
+
+      // Confirma que o alerta pertence a quem está autenticado, antes
+      // de eliminar -- sem isto, qualquer concessionário autenticado
+      // conseguiria apagar alertas de outros só de adivinhar o id.
+      const result = await env.DB
+        .prepare("DELETE FROM reference_alerts WHERE id = ? AND dealer_id = ?")
+        .bind(alertId, dealerIdOrResponse)
+        .run();
+
+      if ((result.meta.changes || 0) === 0) {
+        return json({ error: "Alerta não encontrado." }, { status: 404 });
+      }
+
+      return json({ message: "Alerta cancelado." });
     }
 
     // ============================================================

@@ -267,6 +267,27 @@ carrega mais rápido), e só mostra a imagem em tamanho completo
 (`url`) quando se clica -- importante para fotos grandes não
 tornarem a página lenta a carregar.
 
+## Dashboard do concessionário ("A minha conta")
+
+Ganhou dois blocos que faltavam desde o início:
+
+- **Ficha de contacto**: telefone, email, cidade, morada -- já vinham
+  de `/api/dealers/me`, simplesmente nunca eram mostrados. O
+  concessionário não pode editar estes dados diretamente (nota no
+  próprio ecrã a dizer para contactar o admin) -- decisão consciente,
+  não construída edição própria para não expandir o pedido original;
+  possível funcionalidade futura se fizer sentido.
+
+- **Alertas de referência**: a criação (`POST /api/alerts`) e listagem
+  (`GET /api/alerts/mine`) já existiam desde muito cedo no backend,
+  mas nunca tiveram interface -- ficou uma funcionalidade "invisível"
+  bastante tempo. Agora o dashboard tem um campo para criar e uma
+  lista com botão de cancelar. Nova rota `DELETE /api/alerts/:id`
+  (verifica dono, ao contrário da versão admin que não tem essa
+  restrição). POST /api/alerts também passou a verificar duplicados
+  (evita a mesma referência ser subscrita duas vezes pelo mesmo
+  concessionário).
+
 ## Nome da empresa no registo — nota prática
 
 A lista oficial da Renault usa muitas vezes um nome comercial

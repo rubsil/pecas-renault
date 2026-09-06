@@ -106,6 +106,36 @@
   .verify-status.ok { background: var(--accent-soft); color: var(--accent-text); }
   .verify-status.pending { background: #f5ead6; color: #8a5a1f; }
 
+  .dash-contact-card {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1rem 1.25rem; margin-bottom: 1.5rem; font-size: 0.85rem;
+  }
+  .dash-contact-card .contact-row { display: flex; gap: 0.5rem; padding: 0.25rem 0; }
+  .dash-contact-card .contact-label { color: var(--ink-faint); min-width: 5.5rem; flex-shrink: 0; }
+  .dash-contact-card .contact-value { color: var(--ink); font-weight: 600; }
+  .dash-contact-card .contact-note {
+    font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.5rem; font-style: italic;
+  }
+
+  .alert-create-row { display: flex; gap: 0.5rem; }
+  .alert-create-row input {
+    flex: 1; padding: 0.55rem 0.7rem; font-size: 0.88rem; font-family: var(--mono);
+    border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .alert-create-row button {
+    padding: 0.55rem 1rem; font-size: 0.85rem; font-weight: 700; background: var(--ink);
+    color: var(--paper); border: none; border-radius: var(--radius); cursor: pointer; white-space: nowrap;
+  }
+  .alert-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    padding: 0.55rem 0; border-bottom: 1px solid var(--line); font-size: 0.88rem;
+  }
+  .alert-row .alert-ref { font-family: var(--mono); font-weight: 700; }
+  .alert-row .alert-date { color: var(--ink-faint); font-size: 0.78rem; }
+  .alert-row .alert-cancel-btn {
+    background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.8rem; padding: 0.2rem 0.4rem;
+  }
+
   .listing-row {
     padding: 0.7rem 0; border-bottom: 1px solid var(--line);
     font-size: 0.9rem;
@@ -320,12 +350,25 @@
 
     <div class="verify-status" id="verify-status"></div>
 
+    <div class="dash-contact-card" id="dash-contact-card"></div>
+
     <h3 style="font-size: 0.95rem; margin-bottom: 0.75rem;">As tuas peças publicadas</h3>
     <div id="my-listings"></div>
 
     <div style="margin-top: 1.5rem;">
       <a href="publicar.html" style="color: var(--accent-text); font-weight: 600; text-decoration: none; font-size: 0.9rem;">+ Publicar nova peça →</a>
     </div>
+
+    <h3 style="font-size: 0.95rem; margin: 2rem 0 0.75rem;">Os teus alertas de referência</h3>
+    <div class="hint" style="margin-bottom: 0.75rem;">
+      Avisamos-te assim que alguém publicar uma referência que ainda não está disponível na rede.
+    </div>
+    <div class="alert-create-row">
+      <input type="text" id="new-alert-reference" placeholder="ex: 8200123456" />
+      <button type="button" id="btn-create-alert">+ Criar alerta</button>
+    </div>
+    <div class="message" id="alert-message"></div>
+    <div id="my-alerts" style="margin-top: 0.75rem;"></div>
   </div>
 
 </main>
@@ -736,15 +779,102 @@ async function loadDashboard() {
       verifyEl.textContent = "Conta pendente de confirmação manual. Vais poder publicar assim que for validada.";
     }
 
+    renderContactCard(meData.dealer);
+
     const listingsRes = await fetch(`${API_BASE}/api/listings/mine`, {
       headers: { authorization: `Bearer ${token}` },
     });
     const listingsData = await listingsRes.json();
     renderMyListings(listingsData.results || [], token);
+
+    await loadMyAlerts(token);
   } catch (err) {
     // sessão inválida, deixa o utilizador no ecrã de login
   }
 }
+
+function renderContactCard(dealer) {
+  const card = document.getElementById("dash-contact-card");
+  card.innerHTML = `
+    <div class="contact-row"><span class="contact-label">Telefone</span><span class="contact-value">${escapeHtmlLocal(dealer.phone || "—")}</span></div>
+    <div class="contact-row"><span class="contact-label">Email</span><span class="contact-value">${escapeHtmlLocal(dealer.email || "—")}</span></div>
+    <div class="contact-row"><span class="contact-label">Cidade</span><span class="contact-value">${escapeHtmlLocal(dealer.city || "—")}</span></div>
+    ${dealer.address ? `<div class="contact-row"><span class="contact-label">Morada</span><span class="contact-value">${escapeHtmlLocal(dealer.address)}</span></div>` : ""}
+    <div class="contact-note">
+      Estes são os dados que outros concessionários veem quando encontram as tuas peças.
+      Para corrigir algo, contacta o administrador da plataforma.
+    </div>
+  `;
+}
+
+// ---------- alertas de referência ----------
+async function loadMyAlerts(token) {
+  try {
+    const res = await fetch(`${API_BASE}/api/alerts/mine`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    renderMyAlerts(data.results || [], token);
+  } catch (err) {
+    document.getElementById("my-alerts").innerHTML = '<p style="color: var(--ink-faint); font-size: 0.85rem;">Erro ao carregar alertas.</p>';
+  }
+}
+
+function renderMyAlerts(alerts, token) {
+  const container = document.getElementById("my-alerts");
+
+  if (alerts.length === 0) {
+    container.innerHTML = '<p style="color: var(--ink-faint); font-size: 0.85rem;">Ainda não tens nenhum alerta ativo.</p>';
+    return;
+  }
+
+  container.innerHTML = alerts.map(a => `
+    <div class="alert-row" data-alert-id="${a.id}">
+      <div>
+        <span class="alert-ref">${escapeHtmlLocal(a.reference_normalized)}</span>
+        <div class="alert-date">desde ${new Date(a.created_at.replace(" ", "T") + "Z").toLocaleDateString("pt-PT")}</div>
+      </div>
+      <button type="button" class="alert-cancel-btn" data-alert-id="${a.id}">Cancelar</button>
+    </div>
+  `).join("");
+
+  container.querySelectorAll(".alert-cancel-btn").forEach(btn => {
+    btn.addEventListener("click", () => cancelAlert(btn.dataset.alertId, token));
+  });
+}
+
+async function cancelAlert(alertId, token) {
+  await fetch(`${API_BASE}/api/alerts/${alertId}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  await loadMyAlerts(token);
+}
+
+document.getElementById("btn-create-alert").addEventListener("click", async () => {
+  const input = document.getElementById("new-alert-reference");
+  const reference = input.value.trim();
+  const token = localStorage.getItem("pt_session");
+  const msg = document.getElementById("alert-message");
+
+  if (!reference) return;
+
+  const res = await fetch(`${API_BASE}/api/alerts`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ reference }),
+  });
+  const data = await res.json();
+
+  if (!res.ok) {
+    showMessage(msg, data.error || "Não foi possível criar o alerta.", "error");
+    return;
+  }
+
+  showMessage(msg, "Alerta criado.", "success");
+  input.value = "";
+  await loadMyAlerts(token);
+});
 
 function renderMyListings(listings, token) {
   const container = document.getElementById("my-listings");
