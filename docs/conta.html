@@ -350,25 +350,35 @@
 
     <div class="verify-status" id="verify-status"></div>
 
-    <div class="dash-contact-card" id="dash-contact-card"></div>
-
-    <h3 style="font-size: 0.95rem; margin-bottom: 0.75rem;">As tuas peças publicadas</h3>
-    <div id="my-listings"></div>
-
-    <div style="margin-top: 1.5rem;">
-      <a href="publicar.html" style="color: var(--accent-text); font-weight: 600; text-decoration: none; font-size: 0.9rem;">+ Publicar nova peça →</a>
+    <div class="tabs">
+      <div class="tab active" data-tab="dash-account">Dados da conta</div>
+      <div class="tab" data-tab="dash-listings">Peças</div>
+      <div class="tab" data-tab="dash-alerts">Alertas</div>
     </div>
 
-    <h3 style="font-size: 0.95rem; margin: 2rem 0 0.75rem;">Os teus alertas de referência</h3>
-    <div class="hint" style="margin-bottom: 0.75rem;">
-      Avisamos-te assim que alguém publicar uma referência que ainda não está disponível na rede.
+    <div class="panel active" id="panel-dash-account">
+      <div class="dash-contact-card" id="dash-contact-card"></div>
     </div>
-    <div class="alert-create-row">
-      <input type="text" id="new-alert-reference" placeholder="ex: 8200123456" />
-      <button type="button" id="btn-create-alert">+ Criar alerta</button>
+
+    <div class="panel" id="panel-dash-listings">
+      <div id="my-listings"></div>
+
+      <div style="margin-top: 1.5rem;">
+        <a href="publicar.html" style="color: var(--accent-text); font-weight: 600; text-decoration: none; font-size: 0.9rem;">+ Publicar nova peça →</a>
+      </div>
     </div>
-    <div class="message" id="alert-message"></div>
-    <div id="my-alerts" style="margin-top: 0.75rem;"></div>
+
+    <div class="panel" id="panel-dash-alerts">
+      <div class="hint" style="margin-bottom: 0.75rem;">
+        Avisamos-te assim que alguém publicar uma referência que ainda não está disponível na rede.
+      </div>
+      <div class="alert-create-row">
+        <input type="text" id="new-alert-reference" placeholder="ex: 8200123456" />
+        <button type="button" id="btn-create-alert">+ Criar alerta</button>
+      </div>
+      <div class="message" id="alert-message"></div>
+      <div id="my-alerts" style="margin-top: 0.75rem;"></div>
+    </div>
   </div>
 
 </main>
