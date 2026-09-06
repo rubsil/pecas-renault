@@ -188,6 +188,16 @@
   .settings-box .hint { font-size: 0.8rem; color: var(--ink-faint); margin-bottom: 1rem; }
   .settings-box button { padding: 0.6rem 1.2rem; font-weight: 700; background: var(--ink); color: var(--paper); border: none; border-radius: var(--radius); cursor: pointer; }
 
+  .toggle-label {
+    display: flex !important; align-items: center; gap: 0.5rem; cursor: pointer;
+    margin-bottom: 1rem !important;
+  }
+  .toggle-label input { cursor: pointer; margin: 0; width: auto; }
+
+  .reg-password-fields-disabled { opacity: 0.4; pointer-events: none; }
+  .reg-password-fields-disabled input,
+  .reg-password-fields-disabled button { cursor: not-allowed; }
+
   .btn-toggle-form {
     padding: 0.55rem 1rem; font-size: 0.85rem; font-weight: 600; margin-bottom: 1rem;
     background: var(--paper-raised); border: 1px dashed var(--line); border-radius: var(--radius);
@@ -425,14 +435,20 @@
 
     <div class="panel" id="panel-settings">
       <div class="settings-box">
-        <label for="reg-password-input">Password de registo</label>
-        <input type="text" id="reg-password-input" placeholder="deixa vazio para registo aberto" />
-        <div class="hint">
-          Se preenchida, quem se registar tem de introduzir esta password. Partilha-a
-          apenas no email de apresentação da plataforma. Deixa vazio para qualquer
-          concessionário da lista oficial se poder registar livremente.
+        <label class="toggle-label">
+          <input type="checkbox" id="reg-password-toggle" />
+          Exigir código de acesso no registo
+        </label>
+        <div id="reg-password-fields" class="reg-password-fields-disabled">
+          <label for="reg-password-input">Password de registo</label>
+          <input type="text" id="reg-password-input" placeholder="deixa vazio para registo aberto" disabled />
+          <div class="hint">
+            Se preenchida, quem se registar tem de introduzir esta password. Partilha-a
+            apenas no email de apresentação da plataforma. Deixa vazio para qualquer
+            concessionário da lista oficial se poder registar livremente.
+          </div>
+          <button id="btn-save-reg-password" disabled>Guardar</button>
         </div>
-        <button id="btn-save-reg-password">Guardar</button>
       </div>
 
       <div class="settings-box" style="margin-top: 1.5rem;">
@@ -1601,14 +1617,41 @@ async function loadSettings() {
     const res = await adminFetch("/api/admin/settings");
     const data = await res.json();
     const regPassword = (data.results || []).find(s => s.key === "registration_password");
+    const hasPassword = !!(regPassword?.value && regPassword.value.trim() !== "");
+
     document.getElementById("reg-password-input").value = regPassword?.value || "";
+    document.getElementById("reg-password-toggle").checked = hasPassword;
+    setRegPasswordFieldsEnabled(hasPassword);
   } catch (err) {
     showToast("Erro ao carregar configurações.");
   }
 }
 
+function setRegPasswordFieldsEnabled(enabled) {
+  const fieldsBlock = document.getElementById("reg-password-fields");
+  const input = document.getElementById("reg-password-input");
+  const saveBtn = document.getElementById("btn-save-reg-password");
+
+  fieldsBlock.classList.toggle("reg-password-fields-disabled", !enabled);
+  input.disabled = !enabled;
+  saveBtn.disabled = !enabled;
+}
+
+document.getElementById("reg-password-toggle").addEventListener("change", (e) => {
+  setRegPasswordFieldsEnabled(e.target.checked);
+  // Desligar o toggle não apaga logo a password guardada -- só ao
+  // clicar em "Guardar" com o campo vazio é que o registo volta a
+  // ficar aberto. Isto evita perder a password por engano só de
+  // desligar o toggle para ver como fica, sem confirmar a intenção.
+});
+
 document.getElementById("btn-save-reg-password").addEventListener("click", async () => {
-  const value = document.getElementById("reg-password-input").value;
+  // Se o toggle estiver desligado, guarda sempre vazio (registo
+  // aberto), independentemente do que ainda estiver escrito no campo
+  // -- assim desligar o toggle e guardar tem o efeito esperado.
+  const toggleOn = document.getElementById("reg-password-toggle").checked;
+  const value = toggleOn ? document.getElementById("reg-password-input").value : "";
+
   await adminFetch("/api/admin/settings/registration_password", {
     method: "PUT",
     body: JSON.stringify({ value }),

@@ -200,6 +200,25 @@ dashboard Cloudflare (mostra o histórico de execuções passadas).
       (painel de admin → Configurações), incluir no email.
 - [x] Ligar envio de email real — concluído e testado em produção.
 
+## Password de registo — toggle no admin
+
+No separador Configurações, um checkbox liga/desliga a exigência de
+código de acesso no registo, em vez de só um campo de texto solto.
+Desligado, o bloco fica visualmente cinzento e bloqueado
+(`pointer-events: none`); ao clicar "Guardar" nesse estado, grava
+sempre valor vazio (registo aberto), mesmo que ainda haja texto
+esquecido no campo -- evita perder a password por engano só de
+mexer no toggle sem confirmar a intenção com o botão Guardar.
+
+Nova rota pública `GET /api/settings/registration-status` (sem
+autenticação de admin) diz só sim/não se há password definida, nunca
+revela o valor -- usada em `conta.html` para esconder por completo o
+campo "Código de acesso" no registo quando não for preciso, em vez de
+mostrar um campo confuso a quem não precisa dele. Se a rota falhar por
+qualquer razão, assume-se `passwordRequired: true` por segurança (o
+campo continua visível, nunca esconde por engano numa situação em que
+seria mesmo necessário).
+
 ## Fotos das peças (ImgBB)
 
 O upload de fotos ao publicar/editar uma peça é feito **diretamente do

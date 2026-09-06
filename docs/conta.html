@@ -290,9 +290,11 @@
       <input type="text" id="reg-postal" placeholder="ex: 2710-034" />
       <div class="hint">Ajuda-nos a confirmar automaticamente o teu concessionário, sobretudo se fizeres parte de uma cadeia com vários pontos (Carby, Santogal, etc).</div>
 
-      <label for="reg-access-code">Código de acesso</label>
-      <input type="text" id="reg-access-code" placeholder="fornecido no email de apresentação" />
-      <div class="hint">Se a plataforma tiver registo aberto (sem código definido), este campo pode ficar em branco.</div>
+      <div id="reg-access-code-block">
+        <label for="reg-access-code">Código de acesso</label>
+        <input type="text" id="reg-access-code" placeholder="fornecido no email de apresentação" />
+        <div class="hint">Se a plataforma tiver registo aberto (sem código definido), este campo pode ficar em branco.</div>
+      </div>
 
       <button class="submit" id="btn-register">Criar conta</button>
       <div class="message" id="register-message"></div>
@@ -332,6 +334,20 @@
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 const IMGBB_API_KEY = "11660b9bd954ae9791e204c5360ab132";
 let pendingDealerId = null;
+
+// ---------- esconder o campo de código de acesso se o registo estiver aberto ----------
+// Sem isto, quem se regista via um link com registo aberto (sem
+// password definida no admin) vê um campo que não se aplica a eles,
+// o que gera dúvida ("preciso disto ou não?"). Consulta uma rota
+// pública que só diz sim/não, nunca revela o valor da password.
+fetch(`${API_BASE}/api/settings/registration-status`)
+  .then(res => res.ok ? res.json() : { passwordRequired: true }) // por segurança, assume que é preciso se a rota falhar
+  .then(data => {
+    if (!data.passwordRequired) {
+      document.getElementById("reg-access-code-block").style.display = "none";
+    }
+  })
+  .catch(() => {}); // falha silenciosa -- o campo simplesmente continua visível, comportamento anterior
 
 // ---------- componente de tags (referências de substituição) ----------
 // Um gestor por peça editável (chaves = listing_id), porque o dashboard

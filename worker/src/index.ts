@@ -12,6 +12,7 @@
 //   PATCH /api/listings/:id           — atualiza estado (sold/removed) (autenticado, dono)
 //   GET  /api/listings/browse         — lista todas as peças ativas (sem pesquisa)
 //   GET  /api/listings/map            — concessionários com peças ativas, agrupados, com coordenadas
+//   GET  /api/settings/registration-status — se há password de registo definida (sem revelar o valor)
 //   POST /api/listings/:id/photos     — regista uma foto já enviada ao ImgBB (autenticado, dono)
 //   DELETE /api/listings/:id/photos/:photoId — remove uma foto (autenticado, dono)
 //   DELETE /api/admin/listings/:id/photos/:photoId — remove qualquer foto (admin, sem restrição de dono)
@@ -212,6 +213,16 @@ export default {
     if (path === "/health") return json({ ok: true, service: "peca-troca" });
 
     // ---------- registo ----------
+    // ---------- se há password de registo definida (sem revelar o valor) ----------
+    if (path === "/api/settings/registration-status" && request.method === "GET") {
+      const registrationPassword = await env.DB
+        .prepare("SELECT value FROM settings WHERE key = 'registration_password'")
+        .first<{ value: string | null }>();
+
+      const passwordRequired = !!(registrationPassword?.value && registrationPassword.value.trim() !== "");
+      return json({ passwordRequired });
+    }
+
     if (path === "/api/dealers/register" && request.method === "POST") {
       const body = await request.json<any>().catch(() => null);
       if (!body?.companyName || !body?.phone) {
