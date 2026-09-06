@@ -15,6 +15,7 @@
 //   GET  /api/settings/registration-status — se há password de registo definida (sem revelar o valor)
 //   POST /api/auth/demo-login         — entra direto na conta de demonstração (sem código de email)
 //   POST /api/auth/logout             — termina sessão; se for a conta demo, repõe-na ao estado inicial
+//   POST /api/admin/demo-account/reset — força reposição imediata da conta demo (sem esperar logout/cron)
 //   POST /api/listings/:id/photos     — regista uma foto já enviada ao ImgBB (autenticado, dono)
 //   DELETE /api/listings/:id/photos/:photoId — remove uma foto (autenticado, dono)
 //   DELETE /api/admin/listings/:id/photos/:photoId — remove qualquer foto (admin, sem restrição de dono)
@@ -1261,14 +1262,21 @@ export default {
     }
 
     // ---------- listar todos os concessionários ----------
+    // ---------- forçar reposição imediata da conta demo ----------
+    if (path === "/api/admin/demo-account/reset" && request.method === "POST") {
+      await resetDemoAccount(env.DB);
+      await logAdminActivity(env.DB, "demo_account_reset", "dealer", DEMO_DEALER_ID, "reset manual via admin");
+      return json({ message: "Conta de demonstração reposta ao estado inicial." });
+    }
+
     if (path === "/api/admin/dealers" && request.method === "GET") {
       const rows = await env.DB
         .prepare(
           `SELECT d.id, d.company_name, d.contact_name, d.phone, d.email, d.email_confirmed,
                   d.city, d.postal_code, d.verified, d.verified_at, d.verification_method,
-                  d.created_at, d.last_login_at,
+                  d.created_at, d.last_login_at, d.is_demo,
                   (SELECT COUNT(*) FROM parts_listings pl WHERE pl.dealer_id = d.id AND pl.status = 'active') AS active_listings_count
-           FROM dealers d ORDER BY d.created_at DESC`
+           FROM dealers d ORDER BY d.is_demo DESC, d.created_at DESC`
         )
         .all();
       return json({ results: rows.results || [] });
@@ -1400,6 +1408,10 @@ export default {
     // ---------- eliminar um concessionário (e as suas peças) ----------
     if (adminDealerMatch && request.method === "DELETE") {
       const dealerId = Number(adminDealerMatch[1]);
+
+      if (dealerId === DEMO_DEALER_ID) {
+        return json({ error: "A conta de demonstração não pode ser eliminada -- usa o reset em vez disso." }, { status: 400 });
+      }
 
       const dealer = await env.DB.prepare("SELECT company_name FROM dealers WHERE id = ?").bind(dealerId).first<{ company_name: string }>();
 

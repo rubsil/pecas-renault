@@ -333,6 +333,27 @@ topo assim que `/api/dealers/me` devolve `is_demo: true`. Se um dia
 for preciso alterar o texto ou estilo, tem de ser feito nos 3
 ficheiros.
 
+**Gestão pelo admin**: a conta demo aparece no separador "Contas",
+sempre no topo da lista (`ORDER BY is_demo DESC`), com badge laranja
+"DEMO" e um lembrete visível das credenciais fixas (telefone `demo`,
+email `modo@demo`) -- para nunca teres de ir à documentação ou à base
+de dados para recordar como entrar. Editável como qualquer conta
+normal (nome, telefone, email, cidade, verificação), mas com duas
+diferenças:
+- O botão "Eliminar" é substituído por "Repor demo" -- chama
+  `POST /api/admin/demo-account/reset`, o mesmo `resetDemoAccount()`
+  usado no logout e no Cron Trigger, para forçar uma reposição
+  imediata sem esperar pelo próximo logout ou pela rede de segurança
+  de 6 em 6 horas.
+- `DELETE /api/admin/dealers/:id` recusa explicitamente `id = 999999`
+  -- a conta demo nunca pode ser eliminada de facto, só reposta,
+  porque o login demo e o Cron Trigger dependem deste ID fixo existir
+  sempre.
+
+O botão "Reenviar código" nunca aparece para esta conta (já tem
+`email_confirmed = 1` fixo desde a migração), por isso não há risco
+de tentar enviar um código real para o endereço fictício `modo@demo`.
+
 ## Nome da empresa no registo — nota prática
 
 A lista oficial da Renault usa muitas vezes um nome comercial

@@ -158,6 +158,11 @@
   .badge.ok { background: var(--accent-soft); color: var(--accent-text); }
   .badge.pending { background: var(--warn-soft); color: var(--warn); }
   .badge.none { background: var(--paper); color: var(--ink-faint); border: 1px solid var(--line); }
+  .badge.demo { background: #8a5a1f; color: white; }
+  .demo-credentials-hint { font-size: 0.72rem; color: var(--ink-faint); margin-top: 0.2rem; }
+  .demo-credentials-hint code { background: var(--paper); padding: 0.05rem 0.3rem; border-radius: 3px; }
+  .btn-mini.reset-demo { border-color: #8a5a1f; color: #8a5a1f; }
+  .btn-mini.reset-demo:hover { background: #f5ead6; }
 
   .row-actions { display: flex; gap: 0.35rem; white-space: nowrap; }
   .btn-mini {
@@ -872,7 +877,10 @@ function renderDealers(dealers) {
 
   const rows = sorted.map(d => `
     <tr data-id="${d.id}">
-      <td><input class="editable company-name-field" data-field="companyName" value="${escapeAttr(d.company_name)}" /></td>
+      <td>
+        ${d.is_demo ? '<span class="badge demo">DEMO</span> ' : ""}
+        <input class="editable company-name-field" data-field="companyName" value="${escapeAttr(d.company_name)}" />
+      </td>
       <td><input class="editable phone-field" data-field="phone" value="${escapeAttr(d.phone)}" /></td>
       <td><input class="editable email-field" data-field="email" value="${escapeAttr(d.email)}" /></td>
       <td><input class="editable city-field" data-field="city" value="${escapeAttr(d.city || "")}" /></td>
@@ -884,13 +892,17 @@ function renderDealers(dealers) {
         <div>registo: ${formatDate(d.created_at)}</div>
         <div>verificação: ${formatDate(d.verified_at)}</div>
         <div>${d.active_listings_count || 0} peça${d.active_listings_count === 1 ? "" : "s"} ativa${d.active_listings_count === 1 ? "" : "s"}</div>
+        ${d.is_demo ? '<div class="demo-credentials-hint">login: telefone <code>demo</code> · email <code>modo@demo</code></div>' : ""}
       </td>
       <td>
         <div class="row-actions">
           <button class="btn-mini save" data-action="save-dealer" data-id="${d.id}">Guardar</button>
           ${!d.verified ? `<button class="btn-mini verify" data-action="verify-dealer" data-id="${d.id}">Verificar</button>` : ""}
           ${!d.email_confirmed ? `<button class="btn-mini resend" data-action="resend-confirmation" data-id="${d.id}">Reenviar código</button>` : ""}
-          <button class="btn-mini delete" data-action="delete-dealer" data-id="${d.id}" data-name="${escapeAttr(d.company_name)}" data-count="${d.active_listings_count || 0}">Eliminar</button>
+          ${d.is_demo
+            ? `<button class="btn-mini reset-demo" data-action="reset-demo">Repor demo</button>`
+            : `<button class="btn-mini delete" data-action="delete-dealer" data-id="${d.id}" data-name="${escapeAttr(d.company_name)}" data-count="${d.active_listings_count || 0}">Eliminar</button>`
+          }
         </div>
       </td>
     </tr>
@@ -929,6 +941,16 @@ function renderDealers(dealers) {
   area.querySelectorAll('[data-action="resend-confirmation"]').forEach(btn => {
     btn.addEventListener("click", () => resendConfirmation(Number(btn.dataset.id)));
   });
+  area.querySelectorAll('[data-action="reset-demo"]').forEach(btn => {
+    btn.addEventListener("click", resetDemoAccount);
+  });
+}
+
+async function resetDemoAccount() {
+  if (!confirm("Repor a conta de demonstração ao estado inicial? Qualquer peça, alerta ou alteração feita nela é apagada.")) return;
+  await adminFetch("/api/admin/demo-account/reset", { method: "POST" });
+  showToast("Conta de demonstração reposta.");
+  loadDealers();
 }
 
 async function saveDealer(id) {
