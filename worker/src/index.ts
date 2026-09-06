@@ -13,6 +13,7 @@
 //   GET  /api/listings/browse         — lista todas as peças ativas (sem pesquisa)
 //   GET  /api/listings/map            — concessionários com peças ativas, agrupados, com coordenadas
 //   GET  /api/settings/registration-status — se há password de registo definida (sem revelar o valor)
+//   GET  /api/stats/public              — contagem pública de concessionários na lista oficial (para o hero)
 //   POST /api/auth/demo-login         — entra direto na conta de demonstração (sem código de email)
 //   POST /api/auth/logout             — termina sessão; se for a conta demo, repõe-na ao estado inicial
 //   POST /api/admin/demo-account/reset — força reposição imediata da conta demo (sem esperar logout/cron)
@@ -279,6 +280,15 @@ export default {
 
       const passwordRequired = !!(registrationPassword?.value && registrationPassword.value.trim() !== "");
       return json({ passwordRequired });
+    }
+
+    // ---------- contagem pública de concessionários (só para o hero, sem dados sensíveis) ----------
+    if (path === "/api/stats/public" && request.method === "GET") {
+      const result = await env.DB
+        .prepare("SELECT COUNT(*) AS total FROM official_dealers")
+        .first<{ total: number }>();
+
+      return json({ officialDealersCount: result?.total || 0 });
     }
 
     if (path === "/api/dealers/register" && request.method === "POST") {
