@@ -293,8 +293,14 @@ Ganhou dois blocos que faltavam desde o início:
 
 Para apresentações a quem ainda não tem conta real (ex: Renault
 Portugal) sem passar pelo fluxo normal de confirmação por email.
-Login em `conta.html`, link discreto "Entrar em modo de
-demonstração →" por baixo do formulário de login normal.
+
+**Sem link nem botão visível no site** -- de propósito, tipo "easter
+egg". Entra-se escrevendo as credenciais fixas exatas nos campos
+normais de telefone/email do login (`conta.html`) e clicando em
+"Pedir código" como habitualmente; o handler deteta que os valores
+batem certo com as credenciais demo e chama a rota dedicada em vez do
+fluxo normal de código -- quem não souber os dados exatos nunca
+percebe que esta funcionalidade existe.
 
 **Credenciais fixas**: telefone `demo`, email `modo@demo` (case-
 insensitive). Reconhecidas por uma rota dedicada
