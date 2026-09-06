@@ -154,12 +154,15 @@
   }
   .alert-row .alert-ref { font-family: var(--mono); font-weight: 700; }
   .alert-row .alert-date { color: var(--ink-faint); font-size: 0.78rem; }
-  .alert-satisfied-badge {
+  .alert-satisfied-label {
     display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--accent-text);
     background: var(--accent-soft); padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: 0.4rem;
-    text-decoration: none; cursor: pointer;
   }
-  .alert-satisfied-badge:hover { background: var(--accent); color: white; }
+  .alert-satisfied-link {
+    font-size: 0.78rem; font-weight: 700; color: var(--accent-text);
+    text-decoration: underline; margin-left: 0.3rem; cursor: pointer;
+  }
+  .alert-satisfied-link:hover { color: var(--accent); }
   .alert-row .alert-cancel-btn {
     background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.8rem; padding: 0.2rem 0.4rem;
   }
@@ -1009,7 +1012,7 @@ function renderMyAlerts(alerts, token) {
       <div>
         <span class="alert-ref">${escapeHtmlLocal(a.reference_normalized)}</span>
         ${(a.matches_count || 0) > 0
-          ? `<a class="alert-satisfied-badge" href="index.html?ref=${encodeURIComponent(a.reference_normalized)}" target="_blank" rel="noopener">✓ já disponível — ver</a>`
+          ? `<span class="alert-satisfied-label">Já disponível</span> <a class="alert-satisfied-link" href="index.html?ref=${encodeURIComponent(a.reference_normalized)}" target="_blank" rel="noopener">Ver peça →</a>`
           : ""
         }
         <div class="alert-date">desde ${new Date(a.created_at.replace(" ", "T") + "Z").toLocaleDateString("pt-PT")}</div>

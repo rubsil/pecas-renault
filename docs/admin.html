@@ -141,8 +141,8 @@
     border: 1px solid var(--line); border-radius: 3px;
   }
 
-  .admin-listing-photos { display: flex; flex-wrap: wrap; gap: 0.4rem; max-width: 180px; }
-  .admin-photo-item { position: relative; width: 3.2rem; height: 3.2rem; }
+  .admin-listing-photos { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 0.4rem; }
+  .admin-photo-item { position: relative; width: 3.2rem; height: 3.2rem; flex-shrink: 0; }
   .admin-photo-item img {
     width: 100%; height: 100%; object-fit: cover; border-radius: 3px; border: 1px solid var(--line);
   }
@@ -152,7 +152,7 @@
     cursor: pointer; font-size: 0.6rem; display: flex; align-items: center; justify-content: center; padding: 0;
   }
   .admin-photos-more {
-    width: 3.2rem; height: 3.2rem; border-radius: 3px; border: 1px dashed var(--line);
+    width: 3.2rem; height: 3.2rem; flex-shrink: 0; border-radius: 3px; border: 1px dashed var(--line);
     background: var(--paper); color: var(--ink-soft); font-size: 0.72rem; font-weight: 700; cursor: pointer;
   }
   .admin-photos-more:hover { background: var(--accent-soft); border-color: var(--accent); }
