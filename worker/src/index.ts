@@ -24,6 +24,7 @@
 //
 //   POST /api/alerts                  — subscreve alerta de referência (autenticado)
 //   GET  /api/alerts/mine             — alertas do próprio concessionário (autenticado)
+//   GET  /api/alerts/mine/pending-count — contagem de alertas já satisfeitos (autenticado)
 //   DELETE /api/alerts/:id            — cancela o próprio alerta (autenticado, dono)
 //
 //   Painel de administrador (protegido por header x-admin-password):
@@ -902,13 +903,45 @@ export default {
 
       const rows = await env.DB
         .prepare(
-          `SELECT id, reference_normalized, created_at, notified_at
-           FROM reference_alerts WHERE dealer_id = ? ORDER BY created_at DESC`
+          `SELECT ra.id, ra.reference_normalized, ra.created_at, ra.notified_at,
+                  (SELECT COUNT(*) FROM (
+                     SELECT pl.id FROM parts_listings pl
+                     WHERE pl.reference_normalized = ra.reference_normalized AND pl.status = 'active'
+                     UNION
+                     SELECT pl.id FROM parts_listings pl
+                     JOIN listing_alt_references lar ON lar.listing_id = pl.id
+                     WHERE lar.reference_normalized = ra.reference_normalized AND pl.status = 'active'
+                   )) AS matches_count
+           FROM reference_alerts ra
+           WHERE ra.dealer_id = ? ORDER BY ra.created_at DESC`
         )
         .bind(dealerIdOrResponse)
         .all();
 
       return json({ results: rows.results || [] });
+    }
+
+    // ---------- contagem rápida de alertas satisfeitos (para o badge de navegação) ----------
+    if (path === "/api/alerts/mine/pending-count" && request.method === "GET") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+
+      const result = await env.DB
+        .prepare(
+          `SELECT COUNT(*) AS total FROM reference_alerts ra
+           WHERE ra.dealer_id = ? AND EXISTS (
+             SELECT 1 FROM parts_listings pl
+             WHERE pl.reference_normalized = ra.reference_normalized AND pl.status = 'active'
+             UNION
+             SELECT 1 FROM parts_listings pl
+             JOIN listing_alt_references lar ON lar.listing_id = pl.id
+             WHERE lar.reference_normalized = ra.reference_normalized AND pl.status = 'active'
+           )`
+        )
+        .bind(dealerIdOrResponse)
+        .first<{ total: number }>();
+
+      return json({ count: result?.total || 0 });
     }
 
     // ---------- eliminar o próprio alerta ----------
@@ -1165,11 +1198,19 @@ export default {
         .prepare(
           `SELECT ra.id, ra.reference_normalized, ra.created_at, ra.notified_at,
                   d.id AS dealer_id, d.company_name,
-                  (SELECT COUNT(*) FROM parts_listings pl
-                   WHERE pl.reference_normalized = ra.reference_normalized AND pl.status = 'active') AS matches_count,
+                  (SELECT COUNT(*) FROM (
+                     SELECT pl.id FROM parts_listings pl
+                     WHERE pl.reference_normalized = ra.reference_normalized AND pl.status = 'active'
+                     UNION
+                     SELECT pl.id FROM parts_listings pl
+                     JOIN listing_alt_references lar ON lar.listing_id = pl.id
+                     WHERE lar.reference_normalized = ra.reference_normalized AND pl.status = 'active'
+                   )) AS matches_count,
                   (SELECT d2.company_name FROM parts_listings pl2
+                   LEFT JOIN listing_alt_references lar2 ON lar2.listing_id = pl2.id
                    JOIN dealers d2 ON d2.id = pl2.dealer_id
-                   WHERE pl2.reference_normalized = ra.reference_normalized AND pl2.status = 'active'
+                   WHERE pl2.status = 'active'
+                     AND (pl2.reference_normalized = ra.reference_normalized OR lar2.reference_normalized = ra.reference_normalized)
                    LIMIT 1) AS match_dealer_name
            FROM reference_alerts ra
            JOIN dealers d ON d.id = ra.dealer_id

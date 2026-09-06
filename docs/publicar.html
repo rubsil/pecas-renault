@@ -29,6 +29,13 @@
   .brand-sub { color: var(--ink-faint); font-size: 0.78rem; line-height: 1.2; }
   nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.9rem; margin-left: 1.25rem; }
   nav a:hover { color: var(--ink); text-decoration: underline; }
+  nav a.nav-link-danger { color: var(--danger); }
+  nav a.nav-link-accent { color: var(--accent-text); font-weight: 700; }
+  .nav-alert-badge {
+    display: inline-block; min-width: 1.1rem; height: 1.1rem; padding: 0 0.3rem;
+    background: var(--danger); color: white; border-radius: 999px; font-size: 0.68rem;
+    font-weight: 700; text-align: center; line-height: 1.1rem;
+  }
   .nav-dealer-name { font-weight: 700; font-size: 1rem; color: var(--ink); margin-right: 0.5rem; }
 
   main { max-width: 480px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
@@ -137,9 +144,10 @@
   </div>
   <nav>
     <span class="nav-dealer-name" id="nav-dealer-name" style="display: none;"></span>
-    <a href="index.html">Procurar</a>
+    <a href="index.html">Procurar peças</a>
     <a href="conta.html" id="nav-account-link">A minha conta</a>
-    <a href="#" id="nav-session-link" style="display: none;">Terminar sessão</a>
+    <span class="nav-alert-badge" id="nav-alert-badge" style="display: none;"></span>
+    <a href="#" id="nav-session-link" class="nav-link-danger" style="display: none;">Terminar sessão</a>
   </nav>
 </header>
 
@@ -474,8 +482,20 @@ if (token) {
     localStorage.removeItem("pt_session");
     location.href = "index.html";
   });
+
+  fetch(`${API_BASE}/api/alerts/mine/pending-count`, { headers: { authorization: `Bearer ${token}` } })
+    .then(res => res.ok ? res.json() : null)
+    .then(data => {
+      const badge = document.getElementById("nav-alert-badge");
+      if (data?.count > 0) {
+        badge.textContent = data.count;
+        badge.style.display = "";
+      }
+    })
+    .catch(() => {});
 } else {
   accountLink.textContent = "Entrar / Registar";
+  accountLink.classList.add("nav-link-accent");
 }
 
 init();

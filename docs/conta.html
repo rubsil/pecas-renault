@@ -55,6 +55,11 @@
     font-weight: 700; font-size: 0.9rem; background: var(--paper-raised);
   }
   .tab.active { background: var(--ink); color: var(--paper); }
+  .tab-badge {
+    display: inline-block; min-width: 1.1rem; height: 1.1rem; padding: 0 0.3rem;
+    background: var(--danger); color: white; border-radius: 999px; font-size: 0.68rem;
+    font-weight: 700; text-align: center; line-height: 1.1rem; margin-left: 0.3rem;
+  }
 
   .panel { display: none; }
   .panel.active { display: block; }
@@ -106,6 +111,21 @@
   .verify-status.ok { background: var(--accent-soft); color: var(--accent-text); }
   .verify-status.pending { background: #f5ead6; color: #8a5a1f; }
 
+  .dash-welcome-hint {
+    font-size: 0.85rem; color: var(--ink-soft); margin: 0 0 1.25rem;
+    padding: 0.75rem 1rem; background: var(--accent-soft); border-radius: var(--radius);
+  }
+  .dash-welcome-hint a { color: var(--accent-text); font-weight: 600; }
+  .dash-welcome-hint [data-goto-tab] { color: var(--accent-text); font-weight: 600; cursor: pointer; text-decoration: underline; }
+
+  .auth-contact-hint {
+    font-size: 0.78rem; color: var(--ink-faint); text-align: center; margin: 0 0 1.5rem;
+  }
+  .auth-contact-hint a { color: var(--ink-faint); text-decoration: underline; }
+
+  .resend-code-hint { font-size: 0.82rem; color: var(--ink-faint); text-align: center; margin-top: 0.75rem; }
+  .resend-code-hint a { color: var(--accent-text); font-weight: 600; }
+
   .dash-contact-card {
     background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
     padding: 1rem 1.25rem; margin-bottom: 1.5rem; font-size: 0.85rem;
@@ -133,6 +153,10 @@
   }
   .alert-row .alert-ref { font-family: var(--mono); font-weight: 700; }
   .alert-row .alert-date { color: var(--ink-faint); font-size: 0.78rem; }
+  .alert-satisfied-badge {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--accent-text);
+    background: var(--accent-soft); padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: 0.4rem;
+  }
   .alert-row .alert-cancel-btn {
     background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.8rem; padding: 0.2rem 0.4rem;
   }
@@ -262,7 +286,7 @@
     </div>
   </div>
   <nav>
-    <a href="index.html">Procurar</a>
+    <a href="index.html">Procurar peças</a>
     <a href="publicar.html">Publicar peça</a>
   </nav>
 </header>
@@ -275,6 +299,10 @@
       <div class="tab" data-tab="register">Registar concessionário</div>
     </div>
 
+    <p class="auth-contact-hint">
+      Dúvidas ou problemas a entrar? Contacta <a href="mailto:stockrederenault@gmail.com">stockrederenault@gmail.com</a>.
+    </p>
+
     <div class="panel active" id="panel-login">
       <div id="login-step-phone">
         <label for="login-phone">Telefone da conta</label>
@@ -284,7 +312,7 @@
         <input type="email" id="login-email" placeholder="pecas@exemplo.pt" />
         <div class="hint">Pedimos os dois porque alguns concessionários de uma mesma cadeia partilham o telefone da central.</div>
         <div class="hint">Enviamos um código de acesso para este email.</div>
-        <button class="submit" id="btn-request-code">Pedir código</button>
+        <button class="submit" id="btn-request-code">Pedir código de verificação</button>
       </div>
 
       <div id="login-step-code" style="display: none;">
@@ -292,6 +320,9 @@
         <input type="text" id="login-code" class="code-input" maxlength="6" placeholder="000000" />
         <div class="hint" id="code-countdown-hint">Válido por 15 minutos.</div>
         <button class="submit" id="btn-redeem-code">Entrar</button>
+        <p class="resend-code-hint">
+          Não recebeste o email? <a href="#" id="btn-resend-code">Clica aqui para reenviar o código</a>.
+        </p>
       </div>
 
       <div class="message" id="login-message"></div>
@@ -323,8 +354,7 @@
 
       <div id="reg-access-code-block">
         <label for="reg-access-code">Código de acesso</label>
-        <input type="text" id="reg-access-code" placeholder="fornecido no email de apresentação" />
-        <div class="hint">Se a plataforma tiver registo aberto (sem código definido), este campo pode ficar em branco.</div>
+        <input type="text" id="reg-access-code" placeholder="Fornecido pela administração (stockrederenault@gmail.com)" />
       </div>
 
       <button class="submit" id="btn-register">Criar conta</button>
@@ -337,7 +367,7 @@
       </p>
       <label for="confirm-code">Código de confirmação</label>
       <input type="text" id="confirm-code" class="code-input" maxlength="6" placeholder="000000" />
-      <div class="hint">Se não encontrares o email, verifica o spam. Se o email estiver mal escrito, envia um email para ruben.silva.92@gmail.com com o nome da empresa e o telefone registado, para corrigirmos.</div>
+      <div class="hint">Se não encontrares o email, verifica o spam. Se o email estiver mal escrito, contacta <a href="mailto:stockrederenault@gmail.com">stockrederenault@gmail.com</a> com o nome da empresa e o telefone registado, para corrigirmos.</div>
       <button class="submit" id="btn-confirm-email">Confirmar</button>
       <div class="message" id="confirm-message"></div>
     </div>
@@ -354,10 +384,15 @@
     <div class="tabs">
       <div class="tab active" data-tab="dash-account">Dados da conta</div>
       <div class="tab" data-tab="dash-listings">Peças</div>
-      <div class="tab" data-tab="dash-alerts">Alertas</div>
+      <div class="tab" data-tab="dash-alerts">Alertas <span class="tab-badge" id="tab-badge-alerts" style="display: none;"></span></div>
     </div>
 
     <div class="panel active" id="panel-dash-account">
+      <p class="dash-welcome-hint">
+        Podes começar por: <a href="index.html">procurar peças disponíveis na rede</a>,
+        <a href="publicar.html">publicar o que tens em stock</a>, ou criar um
+        <span data-goto-tab="dash-alerts">alerta</span> para uma referência que precises.
+      </p>
       <div class="dash-contact-card" id="dash-contact-card"></div>
     </div>
 
@@ -499,6 +534,15 @@ document.querySelectorAll(".tab").forEach(tab => {
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
     tab.classList.add("active");
     document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
+  });
+});
+
+// Atalhos de texto (ex: "criar um alerta" na mensagem de boas-vindas)
+// que simulam o clique na tab correspondente, sem duplicar a lógica
+// de troca acima.
+document.querySelectorAll("[data-goto-tab]").forEach(el => {
+  el.addEventListener("click", () => {
+    document.querySelector(`.tab[data-tab="${el.dataset.gotoTab}"]`)?.click();
   });
 });
 
@@ -689,11 +733,14 @@ document.getElementById("btn-confirm-email").addEventListener("click", async () 
 // ---------- login: pedir código ----------
 let loginNeedsEmailConfirmation = false;
 
-document.getElementById("btn-request-code").addEventListener("click", async () => {
-  const phone = document.getElementById("login-phone").value.trim();
-  const email = document.getElementById("login-email").value.trim();
-  const msg = document.getElementById("login-message");
+// Guarda o telefone/email usados no pedido inicial, para o link de
+// reenvio conseguir repetir o pedido sem obrigar a reescrevê-los --
+// os campos originais ficam escondidos depois de avançar para o
+// passo do código.
+let lastLoginPhone = "";
+let lastLoginEmail = "";
 
+async function requestLoginCode(phone, email, msg) {
   if (!phone || !email) {
     showMessage(msg, "Indica o telefone e o email da conta.", "error");
     return;
@@ -721,6 +768,8 @@ document.getElementById("btn-request-code").addEventListener("click", async () =
       return;
     }
 
+    lastLoginPhone = phone;
+    lastLoginEmail = email;
     pendingDealerId = data.dealerId;
     loginNeedsEmailConfirmation = !!data.needsEmailConfirmation;
     document.getElementById("login-step-phone").style.display = "none";
@@ -730,6 +779,20 @@ document.getElementById("btn-request-code").addEventListener("click", async () =
   } catch (err) {
     showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
   }
+}
+
+document.getElementById("btn-request-code").addEventListener("click", async () => {
+  const phone = document.getElementById("login-phone").value.trim();
+  const email = document.getElementById("login-email").value.trim();
+  const msg = document.getElementById("login-message");
+  await requestLoginCode(phone, email, msg);
+});
+
+document.getElementById("btn-resend-code").addEventListener("click", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("login-message");
+  showMessage(msg, "A pedir novo código…", "success");
+  await requestLoginCode(lastLoginPhone, lastLoginEmail, msg);
 });
 
 // ---------- login em modo de demonstração ----------
@@ -903,7 +966,19 @@ async function loadMyAlerts(token) {
       headers: { authorization: `Bearer ${token}` },
     });
     const data = await res.json();
-    renderMyAlerts(data.results || [], token);
+    const alerts = data.results || [];
+    renderMyAlerts(alerts, token);
+
+    // Badge na própria tab, para quem já está dentro do dashboard
+    // ver logo quantos alertas seus já têm peça disponível.
+    const satisfiedCount = alerts.filter(a => (a.matches_count || 0) > 0).length;
+    const tabBadge = document.getElementById("tab-badge-alerts");
+    if (satisfiedCount > 0) {
+      tabBadge.textContent = satisfiedCount;
+      tabBadge.style.display = "";
+    } else {
+      tabBadge.style.display = "none";
+    }
   } catch (err) {
     document.getElementById("my-alerts").innerHTML = '<p style="color: var(--ink-faint); font-size: 0.85rem;">Erro ao carregar alertas.</p>';
   }
@@ -921,6 +996,7 @@ function renderMyAlerts(alerts, token) {
     <div class="alert-row" data-alert-id="${a.id}">
       <div>
         <span class="alert-ref">${escapeHtmlLocal(a.reference_normalized)}</span>
+        ${(a.matches_count || 0) > 0 ? '<span class="alert-satisfied-badge">✓ já disponível</span>' : ""}
         <div class="alert-date">desde ${new Date(a.created_at.replace(" ", "T") + "Z").toLocaleDateString("pt-PT")}</div>
       </div>
       <button type="button" class="alert-cancel-btn" data-alert-id="${a.id}">Cancelar</button>

@@ -19,6 +19,7 @@
     --accent-text: #1f3a23;
     --warn: #8a5a1f;
     --warn-soft: #f5ead6;
+    --danger: #8a2f1f;
     --radius: 6px;
     --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
     --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
@@ -89,12 +90,21 @@
     margin-left: 1.25rem;
   }
   nav a:hover { color: var(--ink); text-decoration: underline; }
+  nav a.nav-link-danger { color: var(--danger); }
+  nav a.nav-link-danger:hover { color: var(--danger); }
+  nav a.nav-link-accent { color: var(--accent-text); font-weight: 700; }
 
   .nav-dealer-name {
     font-weight: 700;
     font-size: 1rem;
     color: var(--ink);
     margin-right: 0.5rem;
+  }
+  .nav-alert-badge {
+    display: inline-block; min-width: 1.1rem; height: 1.1rem; padding: 0 0.3rem;
+    background: var(--danger); color: white; border-radius: 999px; font-size: 0.68rem;
+    font-weight: 700; text-align: center; line-height: 1.1rem; margin-left: -0.75rem; margin-right: 0.5rem;
+    vertical-align: top; position: relative; top: -0.3rem;
   }
 
   main {
@@ -207,11 +217,30 @@
     border-radius: var(--radius);
     border: 1px solid var(--line);
   }
+  .result-photos-more {
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: var(--radius);
+    border: 1px dashed var(--line);
+    background: var(--paper-raised);
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .result-photos-more:hover { background: var(--accent-soft); border-color: var(--accent); }
   .result-photos-indicator {
     grid-column: 1 / -1;
     font-size: 0.78rem;
     color: var(--ink-faint);
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
   }
+  .result-photos-indicator:hover { color: var(--ink-soft); }
 
   .result-qty {
     font-family: var(--mono);
@@ -424,7 +453,8 @@
     <span class="nav-dealer-name" id="nav-dealer-name" style="display: none;"></span>
     <a href="publicar.html">Publicar peça</a>
     <a href="conta.html" id="nav-account-link">A minha conta</a>
-    <a href="#" id="nav-session-link" style="display: none;">Terminar sessão</a>
+    <span class="nav-alert-badge" id="nav-alert-badge" style="display: none;"></span>
+    <a href="#" id="nav-session-link" class="nav-link-danger" style="display: none;">Terminar sessão</a>
   </nav>
 </header>
 
@@ -498,6 +528,71 @@ function showDemoBanner() {
   document.body.insertBefore(banner, document.body.firstChild);
 }
 
+// ---------- popup de galeria de fotos ----------
+// Reutilizável para os dois casos: clicar em "+X fotos" (quando há
+// mais de 3) ou em "📷 X fotos disponíveis" (quando as miniaturas
+// estão desligadas). Cria e insere o popup uma única vez, no body --
+// chamadas seguintes só trocam o conteúdo e mostram/escondem.
+function ensurePhotosModal() {
+  if (document.getElementById("photos-modal-overlay")) return;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #photos-modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(26, 29, 26, 0.6);
+      align-items: center; justify-content: center; padding: 1.5rem;
+    }
+    #photos-modal-overlay.show { display: flex; }
+    #photos-modal-box {
+      background: var(--paper); border-radius: var(--radius);
+      padding: 1.25rem; max-width: 480px; width: 100%; max-height: 80vh; overflow-y: auto;
+    }
+    #photos-modal-box .photos-modal-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;
+    }
+    #photos-modal-box .photos-modal-close {
+      background: none; border: none; font-size: 1.3rem; cursor: pointer; color: var(--ink-faint); line-height: 1;
+    }
+    #photos-modal-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.6rem;
+    }
+    #photos-modal-grid img {
+      width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line);
+    }
+  `;
+  document.head.appendChild(style);
+
+  const overlay = document.createElement("div");
+  overlay.id = "photos-modal-overlay";
+  overlay.innerHTML = `
+    <div id="photos-modal-box">
+      <div class="photos-modal-header">
+        <strong>Fotos da peça</strong>
+        <button type="button" class="photos-modal-close">✕</button>
+      </div>
+      <div id="photos-modal-grid"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay || e.target.classList.contains("photos-modal-close")) {
+      overlay.classList.remove("show");
+    }
+  });
+}
+
+/** Abre o popup com as fotos dadas -- array de {url, thumb}. */
+function openPhotosModal(photos) {
+  ensurePhotosModal();
+  const grid = document.getElementById("photos-modal-grid");
+  grid.innerHTML = photos.map(p =>
+    `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.thumb)}" loading="lazy" /></a>`
+  ).join("");
+  document.getElementById("photos-modal-overlay").classList.add("show");
+}
+
 const input = document.getElementById("ref-input");
 const btn = document.getElementById("search-btn");
 const resultsArea = document.getElementById("results-area");
@@ -505,10 +600,22 @@ const resultsArea = document.getElementById("results-area");
 let lastRenderedResults = [];
 let lastRenderedEmptyMessage = "";
 let showPhotoThumbnails = true;
+let allResultPhotos = []; // reposto a cada renderResults(), indexado por peça com fotos
+
+// Delegação de eventos: os botões "+X" e "📷 X fotos" são recriados a
+// cada renderResults(), por isso o listener fica no contentor fixo
+// (resultsArea) em vez de ser religado a cada peça individualmente.
+resultsArea?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-photos-index]");
+  if (!btn) return;
+  const photos = allResultPhotos[Number(btn.dataset.photosIndex)];
+  if (photos) openPhotosModal(photos);
+});
 
 function renderResults(results, emptyMessage) {
   lastRenderedResults = results;
   lastRenderedEmptyMessage = emptyMessage;
+  allResultPhotos = [];
 
   if (results.length === 0) {
     resultsArea.innerHTML = `
@@ -541,14 +648,25 @@ function renderResults(results, emptyMessage) {
         })
       : [];
 
-    const photosHtml = photos.length > 0
-      ? (showPhotoThumbnails
-          ? `<div class="result-photos">${photos.map(p =>
-              `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.thumb)}" loading="lazy" /></a>`
-            ).join("")}</div>`
-          : `<div class="result-photos-indicator">📷 ${photos.length} foto${photos.length === 1 ? "" : "s"} disponíve${photos.length === 1 ? "l" : "is"}</div>`
-        )
-      : "";
+    let photosHtml = "";
+    if (photos.length > 0) {
+      if (showPhotoThumbnails) {
+        const visible = photos.slice(0, 3);
+        const extra = photos.length - visible.length;
+        photosHtml = `
+          <div class="result-photos">
+            ${visible.map(p => `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.thumb)}" loading="lazy" /></a>`).join("")}
+            ${extra > 0 ? `<button type="button" class="result-photos-more" data-photos-index="${allResultPhotos.length}">+${extra}</button>` : ""}
+          </div>
+        `;
+      } else {
+        photosHtml = `<button type="button" class="result-photos-indicator" data-photos-index="${allResultPhotos.length}">📷 ${photos.length} foto${photos.length === 1 ? "" : "s"} disponíve${photos.length === 1 ? "l" : "is"}</button>`;
+      }
+      // Guarda o array completo desta peça, indexado pela posição em
+      // que foi inserido -- o botão/indicador usa esse índice para
+      // saber que fotos abrir no popup, sem ter de reconstruir nada.
+      allResultPhotos.push(photos);
+    }
 
     card.innerHTML = `
       <div class="result-ref">${escapeHtml(r.reference)}</div>
@@ -751,10 +869,25 @@ if (sessionToken) {
     })
     .catch(() => {})
     .finally(() => loadAllListings()); // só carrega depois de saber (ou não) o dealerId
+
+  // Badge com contagem de alertas já satisfeitos -- pedido à parte
+  // (não bloqueia loadAllListings) porque é só um extra visual, sem
+  // relação com o resto da página carregar.
+  fetch(`${API_BASE}/api/alerts/mine/pending-count`, { headers: { authorization: `Bearer ${sessionToken}` } })
+    .then(res => res.ok ? res.json() : null)
+    .then(data => {
+      const badge = document.getElementById("nav-alert-badge");
+      if (data?.count > 0) {
+        badge.textContent = data.count;
+        badge.style.display = "";
+      }
+    })
+    .catch(() => {});
 } else {
   // Deixa explícito que este link também serve para criar conta —
   // sem isto, quem chega pela primeira vez não percebe que há registo.
   accountLink.textContent = "Entrar / Registar";
+  accountLink.classList.add("nav-link-accent");
   loadAllListings();
 }
 </script>

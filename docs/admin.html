@@ -151,6 +151,11 @@
     background: var(--danger); color: white; border: none; border-radius: 50%;
     cursor: pointer; font-size: 0.6rem; display: flex; align-items: center; justify-content: center; padding: 0;
   }
+  .admin-photos-more {
+    width: 3.2rem; height: 3.2rem; border-radius: 3px; border: 1px dashed var(--line);
+    background: var(--paper); color: var(--ink-soft); font-size: 0.72rem; font-weight: 700; cursor: pointer;
+  }
+  .admin-photos-more:hover { background: var(--accent-soft); border-color: var(--accent); }
 
   .badge { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 3px; white-space: nowrap; display: inline-block; }
   a.badge { text-decoration: none; cursor: pointer; }
@@ -452,8 +457,8 @@
             apenas no email de apresentação da plataforma. Deixa vazio para qualquer
             concessionário da lista oficial se poder registar livremente.
           </div>
-          <button id="btn-save-reg-password" disabled>Guardar</button>
         </div>
+        <button id="btn-save-reg-password">Guardar</button>
       </div>
 
       <div class="settings-box" style="margin-top: 1.5rem;">
@@ -474,6 +479,86 @@
 <script>
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 let adminPassword = sessionStorage.getItem("admin_password") || "";
+
+// ---------- popup de galeria de fotos (com ação de eliminar) ----------
+// Diferente do popup público (index.html) -- aqui cada foto tem
+// sempre um botão de eliminar, porque o admin também precisa de
+// poder remover fotos escondidas atrás do "+X" quando há mais de 3.
+function ensureAdminPhotosModal() {
+  if (document.getElementById("admin-photos-modal-overlay")) return;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #admin-photos-modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(26, 29, 26, 0.6);
+      align-items: center; justify-content: center; padding: 1.5rem;
+    }
+    #admin-photos-modal-overlay.show { display: flex; }
+    #admin-photos-modal-box {
+      background: var(--paper); border-radius: var(--radius);
+      padding: 1.25rem; max-width: 420px; width: 100%; max-height: 80vh; overflow-y: auto;
+    }
+    #admin-photos-modal-box .photos-modal-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;
+    }
+    #admin-photos-modal-box .photos-modal-close {
+      background: none; border: none; font-size: 1.3rem; cursor: pointer; color: var(--ink-faint); line-height: 1;
+    }
+    #admin-photos-modal-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 0.6rem;
+    }
+    #admin-photos-modal-grid .admin-photo-item { width: 100%; height: 80px; }
+  `;
+  document.head.appendChild(style);
+
+  const overlay = document.createElement("div");
+  overlay.id = "admin-photos-modal-overlay";
+  overlay.innerHTML = `
+    <div id="admin-photos-modal-box">
+      <div class="photos-modal-header">
+        <strong>Fotos da peça</strong>
+        <button type="button" class="photos-modal-close">✕</button>
+      </div>
+      <div id="admin-photos-modal-grid"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay || e.target.classList.contains("photos-modal-close")) {
+      overlay.classList.remove("show");
+    }
+  });
+}
+
+/** Abre o popup com as fotos dadas -- array de {id, url, thumb}, com
+ *  botão de eliminar por foto (mesma ação já usada fora do popup). */
+function openAdminPhotosModal(photos, listingId) {
+  ensureAdminPhotosModal();
+  const grid = document.getElementById("admin-photos-modal-grid");
+  grid.innerHTML = photos.map(p => `
+    <div class="admin-photo-item">
+      <a href="${escapeAttr(p.url)}" target="_blank" rel="noopener"><img src="${escapeAttr(p.thumb)}" loading="lazy" /></a>
+      <button type="button" class="admin-photo-remove" data-listing-id="${listingId}" data-photo-id="${p.id}" title="Eliminar foto">✕</button>
+    </div>
+  `).join("");
+
+  // Os botões de eliminar dentro do popup reaproveitam exatamente a
+  // mesma lógica já ligada fora dele -- procurados de novo aqui
+  // porque este conteúdo é recriado a cada abertura do popup.
+  grid.querySelectorAll(".admin-photo-remove").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Eliminar esta foto? (a imagem em si continua no ImgBB, só deixa de estar associada a esta peça)")) return;
+      await adminFetch(`/api/admin/listings/${btn.dataset.listingId}/photos/${btn.dataset.photoId}`, { method: "DELETE" });
+      showToast("Foto removida.");
+      document.getElementById("admin-photos-modal-overlay").classList.remove("show");
+      loadListings();
+    });
+  });
+
+  document.getElementById("admin-photos-modal-overlay").classList.add("show");
+}
 
 // ---------- componente de tags (referências de substituição) ----------
 // Um gestor por peça (chave = listing_id), tal como no dashboard do
@@ -875,7 +960,13 @@ function renderDealers(dealers) {
 
   const sorted = sortRows("dealers", dealers, "company_name");
 
-  const rows = sorted.map(d => `
+  // A conta demo fica sempre fixa no topo, independentemente da coluna
+  // ou direção de ordenação escolhida -- separa-a das restantes com um
+  // segundo passo de ordenação estável, que não mexe na ordem relativa
+  // das contas normais entre si.
+  const demoFirst = [...sorted].sort((a, b) => (b.is_demo || 0) - (a.is_demo || 0));
+
+  const rows = demoFirst.map(d => `
     <tr data-id="${d.id}">
       <td>
         ${d.is_demo ? '<span class="badge demo">DEMO</span> ' : ""}
@@ -1251,6 +1342,7 @@ async function deleteOfficialDealer(id) {
 
 // ---------- peças ----------
 let allListingsCache = [];
+let listingPhotosById = {}; // { listingId: [{id, url, thumb}, ...] }, usado pelo popup "+X fotos"
 let dealerFilterOptions = []; // [{id, name}], derivado das próprias peças
 let selectedDealerFilterId = null;
 
@@ -1370,6 +1462,7 @@ function renderListings(listings) {
       const [id, url, thumb] = item.split(":::");
       return { id, url, thumb: thumb || url };
     });
+    listingPhotosById[l.id] = photos;
 
     return `
     <tr data-id="${l.id}">
@@ -1397,12 +1490,12 @@ function renderListings(listings) {
       </td>
       <td>
         ${photos.length > 0
-          ? `<div class="admin-listing-photos">${photos.map(p => `
+          ? `<div class="admin-listing-photos">${photos.slice(0, 3).map(p => `
               <div class="admin-photo-item">
                 <a href="${escapeAttr(p.url)}" target="_blank" rel="noopener"><img src="${escapeAttr(p.thumb)}" loading="lazy" /></a>
                 <button type="button" class="admin-photo-remove" data-listing-id="${l.id}" data-photo-id="${p.id}" title="Eliminar foto">✕</button>
               </div>
-            `).join("")}</div>`
+            `).join("")}${photos.length > 3 ? `<button type="button" class="admin-photos-more" data-listing-id="${l.id}">+${photos.length - 3}</button>` : ""}</div>`
           : '<span class="hint" style="font-size: 0.75rem;">sem fotos</span>'
         }
       </td>
@@ -1462,6 +1555,13 @@ function renderListings(listings) {
       await adminFetch(`/api/admin/listings/${btn.dataset.listingId}/photos/${btn.dataset.photoId}`, { method: "DELETE" });
       showToast("Foto removida.");
       loadListings();
+    });
+  });
+
+  area.querySelectorAll(".admin-photos-more").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const photos = listingPhotosById[btn.dataset.listingId];
+      if (photos) openAdminPhotosModal(photos, btn.dataset.listingId);
     });
   });
 
@@ -1652,11 +1752,14 @@ async function loadSettings() {
 function setRegPasswordFieldsEnabled(enabled) {
   const fieldsBlock = document.getElementById("reg-password-fields");
   const input = document.getElementById("reg-password-input");
-  const saveBtn = document.getElementById("btn-save-reg-password");
 
+  // O botão "Guardar" fica sempre ativo, mesmo com o toggle desligado
+  // -- é precisamente o clique nele que confirma "quero desligar
+  // isto", gravando o valor vazio no backend. Só o campo de texto em
+  // si é que fica bloqueado (não editável enquanto o toggle não for
+  // religado).
   fieldsBlock.classList.toggle("reg-password-fields-disabled", !enabled);
   input.disabled = !enabled;
-  saveBtn.disabled = !enabled;
 }
 
 document.getElementById("reg-password-toggle").addEventListener("change", (e) => {
