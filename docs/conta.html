@@ -36,14 +36,17 @@
     gap: 0.5rem 1.5rem;
   }
   .brand { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
-  .brand-mark {
-    font-family: var(--mono); font-size: 1rem; font-weight: 700;
-    background: var(--ink); color: var(--paper); padding: 0.15rem 0.4rem; border-radius: 3px;
-    align-self: center;
+  .brand-logo {
+    display: flex; align-items: baseline; gap: 0.15rem;
+    font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em;
   }
-  .brand-text { display: flex; flex-direction: column; gap: 0.1rem; }
-  .brand-name { font-weight: 700; font-size: 1.15rem; line-height: 1.1; }
-  .brand-sub { color: var(--ink-faint); font-size: 0.78rem; line-height: 1.2; }
+  .brand-logo .logo-stock { color: var(--ink); }
+  .brand-logo .logo-rede { color: var(--hero-accent); position: relative; }
+  .brand-logo .logo-rede::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0.1em; height: 2px;
+    background: var(--hero-accent); opacity: 0.35;
+  }
+  .brand-sub { color: var(--ink-faint); font-size: 0.78rem; line-height: 1.2; display: block; margin-top: 0.15rem; }
   nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.9rem; margin-left: 1.25rem; }
   nav a:hover { color: var(--ink); text-decoration: underline; }
   nav a.nav-link-danger { color: var(--danger); }
@@ -291,9 +294,8 @@
 
 <header>
   <div class="brand">
-    <span class="brand-mark">R//D</span>
-    <div class="brand-text">
-      <span class="brand-name">Stock Rede Renault</span>
+    <div>
+      <div class="brand-logo"><span class="logo-stock">Stock</span> <span class="logo-rede">Rede</span> Renault</div>
       <span class="brand-sub">Peças sem rotatividade local, partilhadas entre concessionários</span>
     </div>
   </div>
@@ -319,7 +321,7 @@
     <div class="panel active" id="panel-login">
       <div id="login-step-phone">
         <label for="login-phone">Telefone da conta</label>
-        <input type="tel" id="login-phone" placeholder="21 234 5678" />
+        <input type="tel" id="login-phone" placeholder="213 123 456" />
 
         <label for="login-email">Email da conta</label>
         <input type="email" id="login-email" placeholder="pecas@exemplo.pt" />
@@ -352,7 +354,7 @@
       <input type="text" id="reg-contact" placeholder="Nome do responsável de peças" />
 
       <label for="reg-phone">Telefone</label>
-      <input type="tel" id="reg-phone" placeholder="21 234 5678" />
+      <input type="tel" id="reg-phone" placeholder="213 123 456" />
 
       <label for="reg-email">Email</label>
       <input type="email" id="reg-email" placeholder="pecas@exemplo.pt" required />
@@ -436,6 +438,21 @@
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 const IMGBB_API_KEY = "11660b9bd954ae9791e204c5360ab132";
 let pendingDealerId = null;
+
+// ---------- formatação visual do telefone (213 123 456) ----------
+// Só cosmético -- o backend já remove todos os caracteres não
+// numéricos antes de gravar/comparar (normalizePhone em
+// worker/src/normalize.ts), por isso os espaços aqui nunca chegam a
+// interferir com a validação.
+function attachPhoneMask(inputEl) {
+  inputEl.addEventListener("input", (e) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 9);
+    const groups = digitsOnly.match(/.{1,3}/g) || [];
+    e.target.value = groups.join(" ");
+  });
+}
+attachPhoneMask(document.getElementById("login-phone"));
+attachPhoneMask(document.getElementById("reg-phone"));
 
 // ---------- banner de modo de demonstração ----------
 // Função autocontida (HTML + CSS injetados via JS) para poder ser

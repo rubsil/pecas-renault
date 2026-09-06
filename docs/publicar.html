@@ -24,10 +24,17 @@
     flex-wrap: wrap; gap: 0.5rem 1.5rem;
   }
   .brand { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
-  .brand-mark { font-family: var(--mono); font-size: 1rem; font-weight: 700; background: var(--ink); color: var(--paper); padding: 0.15rem 0.4rem; border-radius: 3px; align-self: center; }
-  .brand-text { display: flex; flex-direction: column; gap: 0.1rem; }
-  .brand-name { font-weight: 700; font-size: 1.15rem; line-height: 1.1; }
-  .brand-sub { color: var(--ink-faint); font-size: 0.78rem; line-height: 1.2; }
+  .brand-logo {
+    display: flex; align-items: baseline; gap: 0.15rem;
+    font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em;
+  }
+  .brand-logo .logo-stock { color: var(--ink); }
+  .brand-logo .logo-rede { color: var(--hero-accent); position: relative; }
+  .brand-logo .logo-rede::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0.1em; height: 2px;
+    background: var(--hero-accent); opacity: 0.35;
+  }
+  .brand-sub { color: var(--ink-faint); font-size: 0.78rem; line-height: 1.2; display: block; margin-top: 0.15rem; }
   nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.9rem; margin-left: 1.25rem; }
   nav a:hover { color: var(--ink); text-decoration: underline; }
   nav a.nav-link-danger { color: var(--danger); }
@@ -137,9 +144,8 @@
 
 <header>
   <div class="brand">
-    <span class="brand-mark">R//D</span>
-    <div class="brand-text">
-      <span class="brand-name">Stock Rede Renault</span>
+    <div>
+      <div class="brand-logo"><span class="logo-stock">Stock</span> <span class="logo-rede">Rede</span> Renault</div>
       <span class="brand-sub">Peças sem rotatividade local, partilhadas entre concessionários</span>
     </div>
   </div>
