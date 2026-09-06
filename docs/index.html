@@ -188,18 +188,22 @@
 
   .result-card {
     border: 1px solid var(--line);
+    border-left: 3px solid var(--line);
     border-radius: var(--radius);
     background: var(--paper-raised);
-    padding: 1rem 1.25rem;
+    padding: 1rem 1.25rem 1rem 1.4rem;
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0.5rem 1rem;
+    transition: border-left-color 0.15s ease;
   }
+  .result-card:hover { border-left-color: var(--hero-accent); }
 
   .result-ref {
     font-family: var(--mono);
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
   }
 
   .result-desc {

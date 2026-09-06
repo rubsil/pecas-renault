@@ -17,6 +17,7 @@
     --accent-text: #1f3a23;
     --danger: #8a2f1f;
     --danger-soft: #f5ddd6;
+    --hero-accent: #c4622d;
     --radius: 6px;
     --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
     --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
@@ -73,7 +74,7 @@
     border: 1px solid var(--line); border-radius: var(--radius);
     background: var(--paper-raised); color: var(--ink); font-family: var(--sans);
   }
-  input:focus { outline: none; border-color: var(--accent); }
+  input:focus { outline: none; border-color: var(--hero-accent); }
 
   button.submit {
     width: 100%; margin-top: 1.5rem; padding: 0.8rem;
@@ -81,7 +82,7 @@
     border: 2px solid var(--ink); background: var(--ink); color: var(--paper);
     border-radius: var(--radius); cursor: pointer;
   }
-  button.submit:hover { background: var(--accent); border-color: var(--accent); }
+  button.submit:hover { background: var(--hero-accent); border-color: var(--hero-accent); }
   button.submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .hint { font-size: 0.8rem; color: var(--ink-faint); margin-top: 0.4rem; }
@@ -102,9 +103,14 @@
   .dashboard { display: none; }
   .dashboard.show { display: block; }
 
-  .dash-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.5rem; }
-  .dash-header h2 { margin: 0; font-size: 1.2rem; }
-  .logout-link { font-size: 0.85rem; color: var(--ink-faint); cursor: pointer; text-decoration: underline; }
+  .dash-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 1.5rem; background: var(--ink); color: var(--paper);
+    padding: 1.25rem 1.5rem; border-radius: var(--radius);
+  }
+  .dash-header h2 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+  .logout-link { font-size: 0.85rem; color: #999; cursor: pointer; }
+  .logout-link:hover { color: #ccc; }
 
   .verify-status {
     padding: 0.7rem 1rem; border-radius: var(--radius); font-size: 0.85rem; margin-bottom: 1.5rem;
