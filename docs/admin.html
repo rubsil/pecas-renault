@@ -1489,15 +1489,24 @@ function renderListings(listings) {
         ${l.updated_at && l.updated_at !== l.created_at ? `<div>atualizada: ${formatDate(l.updated_at)}</div>` : ""}
       </td>
       <td>
-        ${photos.length > 0
-          ? `<div class="admin-listing-photos">${photos.slice(0, 3).map(p => `
+        ${(() => {
+          if (photos.length === 0) return '<span class="hint" style="font-size: 0.75rem;">sem fotos</span>';
+
+          // Mantém sempre a linha com a mesma altura, no máximo 2
+          // "slots": 1 foto -> 1 thumb; 2 fotos -> 2 thumbs; 3+ fotos
+          // -> 1 thumb + botão "+X" (nunca 3 thumbs lado a lado, que
+          // deixava a linha mais alta consoante o nº de fotos).
+          const visibleCount = photos.length >= 3 ? 1 : photos.length;
+          const visible = photos.slice(0, visibleCount);
+          const extra = photos.length - visibleCount;
+
+          return `<div class="admin-listing-photos">${visible.map(p => `
               <div class="admin-photo-item">
                 <a href="${escapeAttr(p.url)}" target="_blank" rel="noopener"><img src="${escapeAttr(p.thumb)}" loading="lazy" /></a>
                 <button type="button" class="admin-photo-remove" data-listing-id="${l.id}" data-photo-id="${p.id}" title="Eliminar foto">✕</button>
               </div>
-            `).join("")}${photos.length > 3 ? `<button type="button" class="admin-photos-more" data-listing-id="${l.id}">+${photos.length - 3}</button>` : ""}</div>`
-          : '<span class="hint" style="font-size: 0.75rem;">sem fotos</span>'
-        }
+            `).join("")}${extra > 0 ? `<button type="button" class="admin-photos-more" data-listing-id="${l.id}">+${extra}</button>` : ""}</div>`;
+        })()}
       </td>
       <td>
         <div class="row-actions">

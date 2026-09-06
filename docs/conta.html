@@ -45,6 +45,7 @@
   .brand-sub { color: var(--ink-faint); font-size: 0.78rem; line-height: 1.2; }
   nav a { color: var(--ink-soft); text-decoration: none; font-size: 0.9rem; margin-left: 1.25rem; }
   nav a:hover { color: var(--ink); text-decoration: underline; }
+  nav a.nav-link-danger { color: var(--danger); }
 
   main { max-width: 480px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
 
@@ -156,7 +157,9 @@
   .alert-satisfied-badge {
     display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--accent-text);
     background: var(--accent-soft); padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: 0.4rem;
+    text-decoration: none; cursor: pointer;
   }
+  .alert-satisfied-badge:hover { background: var(--accent); color: white; }
   .alert-row .alert-cancel-btn {
     background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.8rem; padding: 0.2rem 0.4rem;
   }
@@ -288,6 +291,7 @@
   <nav>
     <a href="index.html">Procurar peças</a>
     <a href="publicar.html">Publicar peça</a>
+    <a href="#" id="nav-session-link" class="nav-link-danger" style="display: none;">Terminar sessão</a>
   </nav>
 </header>
 
@@ -879,7 +883,7 @@ document.getElementById("btn-redeem-code").addEventListener("click", async () =>
 });
 
 // ---------- logout ----------
-document.getElementById("btn-logout").addEventListener("click", async () => {
+async function handleLogout() {
   const token = localStorage.getItem("pt_session");
 
   // Chama o backend antes de limpar a sessão local -- é este pedido
@@ -902,6 +906,13 @@ document.getElementById("btn-logout").addEventListener("click", async () => {
   document.getElementById("dashboard-view").classList.remove("show");
   document.getElementById("auth-view").style.display = "block";
   location.reload(); // garante que o banner de modo demo desaparece, se estava visível
+}
+
+document.getElementById("btn-logout").addEventListener("click", handleLogout);
+
+document.getElementById("nav-session-link").addEventListener("click", (e) => {
+  e.preventDefault();
+  handleLogout();
 });
 
 // ---------- dashboard ----------
@@ -919,6 +930,7 @@ async function loadDashboard() {
     document.getElementById("auth-view").style.display = "none";
     document.getElementById("dashboard-view").classList.add("show");
     document.getElementById("dash-company-name").textContent = meData.dealer.company_name;
+    document.getElementById("nav-session-link").style.display = "";
 
     if (meData.dealer.is_demo) showDemoBanner();
 
@@ -996,7 +1008,10 @@ function renderMyAlerts(alerts, token) {
     <div class="alert-row" data-alert-id="${a.id}">
       <div>
         <span class="alert-ref">${escapeHtmlLocal(a.reference_normalized)}</span>
-        ${(a.matches_count || 0) > 0 ? '<span class="alert-satisfied-badge">✓ já disponível</span>' : ""}
+        ${(a.matches_count || 0) > 0
+          ? `<a class="alert-satisfied-badge" href="index.html?ref=${encodeURIComponent(a.reference_normalized)}" target="_blank" rel="noopener">✓ já disponível — ver</a>`
+          : ""
+        }
         <div class="alert-date">desde ${new Date(a.created_at.replace(" ", "T") + "Z").toLocaleDateString("pt-PT")}</div>
       </div>
       <button type="button" class="alert-cancel-btn" data-alert-id="${a.id}">Cancelar</button>

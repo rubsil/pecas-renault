@@ -103,8 +103,7 @@
   .nav-alert-badge {
     display: inline-block; min-width: 1.1rem; height: 1.1rem; padding: 0 0.3rem;
     background: var(--danger); color: white; border-radius: 999px; font-size: 0.68rem;
-    font-weight: 700; text-align: center; line-height: 1.1rem; margin-left: -0.75rem; margin-right: 0.5rem;
-    vertical-align: top; position: relative; top: -0.3rem;
+    font-weight: 700; text-align: center; line-height: 1.1rem; margin-left: 0.3rem;
   }
 
   main {
@@ -232,15 +231,16 @@
   .result-photos-indicator {
     grid-column: 1 / -1;
     font-size: 0.78rem;
-    color: var(--ink-faint);
+    color: var(--accent-text);
     background: none;
     border: none;
     text-align: left;
-    padding: 0;
+    padding: 0.2rem 0;
     cursor: pointer;
     text-decoration: underline;
+    font-weight: 600;
   }
-  .result-photos-indicator:hover { color: var(--ink-soft); }
+  .result-photos-indicator:hover { color: var(--accent); }
 
   .result-qty {
     font-family: var(--mono);
@@ -868,7 +868,7 @@ if (sessionToken) {
       if (data?.dealer?.is_demo) showDemoBanner();
     })
     .catch(() => {})
-    .finally(() => loadAllListings()); // só carrega depois de saber (ou não) o dealerId
+    .finally(() => loadInitialResults()); // só carrega depois de saber (ou não) o dealerId
 
   // Badge com contagem de alertas já satisfeitos -- pedido à parte
   // (não bloqueia loadAllListings) porque é só um extra visual, sem
@@ -888,7 +888,20 @@ if (sessionToken) {
   // sem isto, quem chega pela primeira vez não percebe que há registo.
   accountLink.textContent = "Entrar / Registar";
   accountLink.classList.add("nav-link-accent");
-  loadAllListings();
+  loadInitialResults();
+}
+
+// Link direto para uma referência específica (ex: vindo de "Já
+// disponível" no dashboard de alertas) -- ?ref=8200123456 preenche o
+// campo de pesquisa e corre a pesquisa em vez de mostrar tudo.
+function loadInitialResults() {
+  const refParam = new URLSearchParams(location.search).get("ref");
+  if (refParam) {
+    input.value = refParam;
+    runSearch();
+  } else {
+    loadAllListings();
+  }
 }
 </script>
 
