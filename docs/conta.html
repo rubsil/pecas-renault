@@ -116,6 +116,7 @@
   .dash-contact-card .contact-note {
     font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.5rem; font-style: italic;
   }
+  .dash-contact-card .contact-note a { color: var(--accent-text); font-style: normal; }
 
   .alert-create-row { display: flex; gap: 0.5rem; }
   .alert-create-row input {
@@ -890,7 +891,7 @@ function renderContactCard(dealer) {
     ${dealer.address ? `<div class="contact-row"><span class="contact-label">Morada</span><span class="contact-value">${escapeHtmlLocal(dealer.address)}</span></div>` : ""}
     <div class="contact-note">
       Estes são os dados que outros concessionários veem quando encontram as tuas peças.
-      Para corrigir algo, contacta o administrador da plataforma.
+      Para corrigir algo, contacta o administrador da plataforma: <a href="mailto:stockrederenault@gmail.com">stockrederenault@gmail.com</a>.
     </div>
   `;
 }
