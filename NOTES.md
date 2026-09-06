@@ -118,6 +118,7 @@ D1 → `peca-troca-db` → Console). Histórico:
 - `0006_listing_alt_references.sql` — tabela `listing_alt_references`
 - `0007_official_dealers_coordinates.sql` — colunas `lat`/`lon`/`geocoded_at` na lista oficial
 - `0008_listing_photos.sql` — tabela `listing_photos` (fotos via ImgBB)
+- `0009_demo_account.sql` — coluna `is_demo` + conta de demonstração fixa (id 999999)
 
 ## Correções manuais na base de dados
 
@@ -287,6 +288,50 @@ Ganhou dois blocos que faltavam desde o início:
   restrição). POST /api/alerts também passou a verificar duplicados
   (evita a mesma referência ser subscrita duas vezes pelo mesmo
   concessionário).
+
+## Conta de demonstração
+
+Para apresentações a quem ainda não tem conta real (ex: Renault
+Portugal) sem passar pelo fluxo normal de confirmação por email.
+Login em `conta.html`, link discreto "Entrar em modo de
+demonstração →" por baixo do formulário de login normal.
+
+**Credenciais fixas**: telefone `demo`, email `modo@demo` (case-
+insensitive). Reconhecidas por uma rota dedicada
+(`POST /api/auth/demo-login`), que nunca gera nem exige código --
+completamente à parte do fluxo normal de login.
+
+**A conta em si**: um único registo fixo em `dealers`, id `999999`
+(migração 0009), marcado com `is_demo = 1`.
+
+**Reset ao estado inicial**: acontece em dois momentos --
+1. Ao clicar "Sair" -- `POST /api/auth/logout` verifica `is_demo` e
+   chama `resetDemoAccount()` antes de confirmar o logout.
+2. Rede de segurança: Cron Trigger de 6 em 6 horas (`0 */6 * * *` em
+   `wrangler.toml`), para quem fecha o browser sem clicar em "Sair".
+
+`resetDemoAccount()` (em `worker/src/index.ts`) apaga tudo o que a
+conta demo tenha criado (peças, fotos das peças, referências
+alternativas, alertas) e restaura os campos fixos da própria conta
+(nome, telefone, email, cidade -- limpa morada/coordenadas). Nunca
+elimina a conta em si, só o que ela produziu.
+
+**Invisibilidade total**: as três rotas públicas que devolvem
+concessionários/peças (`browse`, `search`, `map`) filtram
+`WHERE d.is_demo = 0` -- a conta demo nunca aparece na pesquisa nem
+no mapa, mesmo que tenha peças publicadas no momento. As estatísticas
+do admin (`/api/admin/stats`) também excluem a demo das contagens de
+concessionários, para não inflacionar os números. As rotas do
+**admin** (listar contas, peças, alertas, exportar CSV) continuam
+**sem filtro**, de propósito -- o admin precisa de ver e poder gerir
+a conta demo normalmente.
+
+**Banner de aviso**: função `showDemoBanner()`, duplicada em
+`index.html`, `conta.html` e `publicar.html` (o projeto não tem um
+ficheiro CSS/JS partilhado entre páginas). Insere um banner fixo no
+topo assim que `/api/dealers/me` devolve `is_demo: true`. Se um dia
+for preciso alterar o texto ou estilo, tem de ser feito nos 3
+ficheiros.
 
 ## Nome da empresa no registo — nota prática
 

@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS dealers (
   login_token TEXT,                         -- token atual para magic link (rotativo)
   login_token_expires_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  last_login_at TEXT
+  last_login_at TEXT,
+  is_demo INTEGER DEFAULT 0                 -- 1 = conta de demonstração, invisível ao público, reposta periodicamente
 );
 
 CREATE INDEX IF NOT EXISTS idx_dealers_phone ON dealers(phone_normalized);

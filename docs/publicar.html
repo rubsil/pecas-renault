@@ -192,6 +192,26 @@ const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 const token = localStorage.getItem("pt_session");
 const dealerNameEl = document.getElementById("nav-dealer-name");
 
+// ---------- banner de modo de demonstração ----------
+function showDemoBanner() {
+  if (document.getElementById("demo-mode-banner")) return;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #demo-mode-banner {
+      position: sticky; top: 0; z-index: 100;
+      background: #8a5a1f; color: white; text-align: center;
+      padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 600;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const banner = document.createElement("div");
+  banner.id = "demo-mode-banner";
+  banner.textContent = "🔎 Estás em modo de demonstração — nada do que fizeres aqui fica guardado.";
+  document.body.insertBefore(banner, document.body.firstChild);
+}
+
 // ---------- componente de tags (referências de substituição) ----------
 // Reutilizável: cria um "gestor de tags" ligado a um input + lista.
 // addTag() ignora duplicados (comparação simples, sem normalizar --
@@ -365,6 +385,8 @@ async function init() {
 
     document.getElementById("not-logged").style.display = "none";
     document.getElementById("publish-form").classList.add("show");
+
+    if (data.dealer.is_demo) showDemoBanner();
 
     if (!data.dealer.verified) {
       document.getElementById("verify-notice").classList.add("show");

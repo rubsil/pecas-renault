@@ -13,6 +13,8 @@
 //   GET  /api/listings/browse         — lista todas as peças ativas (sem pesquisa)
 //   GET  /api/listings/map            — concessionários com peças ativas, agrupados, com coordenadas
 //   GET  /api/settings/registration-status — se há password de registo definida (sem revelar o valor)
+//   POST /api/auth/demo-login         — entra direto na conta de demonstração (sem código de email)
+//   POST /api/auth/logout             — termina sessão; se for a conta demo, repõe-na ao estado inicial
 //   POST /api/listings/:id/photos     — regista uma foto já enviada ao ImgBB (autenticado, dono)
 //   DELETE /api/listings/:id/photos/:photoId — remove uma foto (autenticado, dono)
 //   DELETE /api/admin/listings/:id/photos/:photoId — remove qualquer foto (admin, sem restrição de dono)
@@ -52,7 +54,7 @@
 
 import { normalizePhone, normalizeReference, normalizeText } from "./normalize";
 import { verifyAgainstOfficialList } from "./verification";
-import { createLoginCode, redeemLoginCode, resolveSession } from "./auth";
+import { createLoginCode, redeemLoginCode, resolveSession, randomToken } from "./auth";
 import { checkAdminAuth } from "./admin";
 import { geocodeAddress, distanceKm, sleep } from "./geocoding";
 import { sendEmail, buildVerificationEmailBody, gmailConfigured, getAccessToken } from "./email";
@@ -97,6 +99,59 @@ function requireAdmin(request: Request, env: Env): Response | null {
     return json({ error: "Password de administrador inválida." }, { status: 401 });
   }
   return null;
+}
+
+const DEMO_DEALER_ID = 999999;
+
+/**
+ * Repõe a conta de demonstração ao estado inicial -- apaga tudo o que
+ * a pessoa em modo demo tenha criado (peças, fotos das peças,
+ * alertas) e restaura os dados fixos da própria conta. Chamada tanto
+ * no logout explícito como pelo Cron Trigger de 6 em 6 horas (rede
+ * de segurança para quem não faz logout manual).
+ *
+ * Nunca elimina a conta em si -- só o que ela produziu.
+ */
+async function resetDemoAccount(db: D1Database): Promise<void> {
+  // Fotos primeiro (dependem de listings), depois listings e alertas,
+  // por causa das referências entre tabelas.
+  await db
+    .prepare(
+      `DELETE FROM listing_photos WHERE listing_id IN
+       (SELECT id FROM parts_listings WHERE dealer_id = ?)`
+    )
+    .bind(DEMO_DEALER_ID)
+    .run();
+  await db
+    .prepare(
+      `DELETE FROM listing_alt_references WHERE listing_id IN
+       (SELECT id FROM parts_listings WHERE dealer_id = ?)`
+    )
+    .bind(DEMO_DEALER_ID)
+    .run();
+  await db.prepare("DELETE FROM parts_listings WHERE dealer_id = ?").bind(DEMO_DEALER_ID).run();
+  await db.prepare("DELETE FROM reference_alerts WHERE dealer_id = ?").bind(DEMO_DEALER_ID).run();
+
+  // Restaura os dados fixos -- caso a pessoa tenha editado o nome,
+  // telefone, morada, etc. via dashboard durante a sessão.
+  await db
+    .prepare(
+      `UPDATE dealers SET
+         company_name = 'Concessionário Demo',
+         contact_name = NULL,
+         phone = 'demo',
+         phone_normalized = 'demo',
+         email = 'modo@demo',
+         address = NULL,
+         postal_code = NULL,
+         city = 'Cidade de Demonstração',
+         lat = NULL,
+         lon = NULL,
+         verified = 1
+       WHERE id = ?`
+    )
+    .bind(DEMO_DEALER_ID)
+    .run();
 }
 
 async function logAdminActivity(
@@ -429,6 +484,50 @@ export default {
       return json({ sessionToken });
     }
 
+    // ---------- login direto na conta de demonstração ----------
+    // Sem código de email -- reconhece só telefone "demo" + email
+    // "modo@demo" (case-insensitive no email, para tolerar erro de
+    // maiúsculas). Gera sessão da mesma forma que o login normal,
+    // mas nunca passa pelo fluxo de código de 6 dígitos.
+    if (path === "/api/auth/demo-login" && request.method === "POST") {
+      const body = await request.json<any>().catch(() => null);
+      const phone = (body?.phone || "").trim().toLowerCase();
+      const email = (body?.email || "").trim().toLowerCase();
+
+      if (phone !== "demo" || email !== "modo@demo") {
+        return json({ error: "Credenciais de demonstração inválidas." }, { status: 401 });
+      }
+
+      const sessionToken = randomToken();
+      const sessionExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await env.DB
+        .prepare("UPDATE dealers SET login_token = ?, login_token_expires_at = ?, last_login_at = datetime('now') WHERE id = ?")
+        .bind(sessionToken, sessionExpiry, DEMO_DEALER_ID)
+        .run();
+
+      return json({ sessionToken });
+    }
+
+    // ---------- logout; repõe a conta demo se for o caso ----------
+    if (path === "/api/auth/logout" && request.method === "POST") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+
+      const dealer = await env.DB
+        .prepare("SELECT is_demo FROM dealers WHERE id = ?")
+        .bind(dealerIdOrResponse)
+        .first<{ is_demo: number }>();
+
+      if (dealer?.is_demo) {
+        await resetDemoAccount(env.DB);
+      }
+
+      // Sessões normais não precisam de nada mais aqui -- o frontend
+      // já limpa o token do localStorage por conta própria. Só a
+      // conta demo tem efeito real neste endpoint.
+      return json({ message: "Sessão terminada." });
+    }
+
     // ---------- dados do concessionário autenticado ----------
     if (path === "/api/dealers/me" && request.method === "GET") {
       const dealerIdOrResponse = await requireDealer(request, env);
@@ -436,7 +535,7 @@ export default {
 
       const dealer = await env.DB
         .prepare(
-          `SELECT id, company_name, contact_name, phone, email, address, postal_code, city, verified
+          `SELECT id, company_name, contact_name, phone, email, address, postal_code, city, verified, is_demo
            FROM dealers WHERE id = ?`
         )
         .bind(dealerIdOrResponse)
@@ -654,7 +753,7 @@ export default {
              (SELECT GROUP_CONCAT(lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
-           WHERE pl.status = 'active'
+           WHERE pl.status = 'active' AND d.is_demo = 0
            ORDER BY pl.created_at DESC
            LIMIT 100`
         )
@@ -707,7 +806,7 @@ export default {
              GROUP_CONCAT(pl.reference, ', ') AS references_list
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
-           WHERE pl.status = 'active' AND d.lat IS NOT NULL AND d.lon IS NOT NULL
+           WHERE pl.status = 'active' AND d.lat IS NOT NULL AND d.lon IS NOT NULL AND d.is_demo = 0
            GROUP BY d.id
            ORDER BY d.company_name`
         )
@@ -737,7 +836,7 @@ export default {
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            LEFT JOIN listing_alt_references alt ON alt.listing_id = pl.id
-           WHERE (pl.reference_normalized LIKE ? OR alt.reference_normalized LIKE ?) AND pl.status = 'active'
+           WHERE (pl.reference_normalized LIKE ? OR alt.reference_normalized LIKE ?) AND pl.status = 'active' AND d.is_demo = 0
            ORDER BY pl.created_at DESC
            LIMIT 50`
         )
@@ -847,7 +946,7 @@ export default {
     if (path === "/api/admin/stats" && request.method === "GET") {
       const [dealerCounts, listingCounts, recentListings, pendingDealers, pendingAlerts] = await Promise.all([
         env.DB.prepare(
-          "SELECT COUNT(*) AS total, SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) AS verified FROM dealers"
+          "SELECT COUNT(*) AS total, SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) AS verified FROM dealers WHERE is_demo = 0"
         ).first<{ total: number; verified: number }>(),
         env.DB.prepare(
           "SELECT COUNT(*) AS total FROM parts_listings WHERE status = 'active'"
@@ -856,7 +955,7 @@ export default {
           "SELECT COUNT(*) AS total FROM parts_listings WHERE created_at >= datetime('now', '-7 days')"
         ).first<{ total: number }>(),
         env.DB.prepare(
-          "SELECT COUNT(*) AS total FROM dealers WHERE verified = 0"
+          "SELECT COUNT(*) AS total FROM dealers WHERE verified = 0 AND is_demo = 0"
         ).first<{ total: number }>(),
         env.DB.prepare(
           "SELECT COUNT(*) AS total FROM reference_alerts WHERE notified_at IS NULL"
@@ -1473,21 +1572,36 @@ export default {
   },
 
   /**
-   * Cron Trigger (ver [triggers] em wrangler.toml, corre de 4 em 4
-   * meses). Só troca o refresh token do Gmail por um access token
-   * novo -- não envia nenhum email, só "usa" o refresh token para a
-   * Google não o considerar inativo e o invalidar ao fim de 6 meses.
-   * Falha aqui não é crítica (login normal de qualquer concessionário
-   * já tem o mesmo efeito) -- só regista o erro nos logs do Worker.
+  /**
+   * Cron Triggers (ver [triggers] em wrangler.toml). Duas expressões
+   * diferentes disparam este mesmo handler; controller.cron diz qual
+   * foi, para saber que lógica correr.
    */
-  async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    if (!gmailConfigured(env)) return; // nada a manter vivo se ainda não estiver configurado
+  async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    if (controller.cron === "0 4 1 1,5,9 *") {
+      // De 4 em 4 meses: mantém o refresh token do Gmail vivo (ver
+      // worker/src/email.ts e NOTES.md para o contexto completo).
+      if (!gmailConfigured(env)) return;
+      try {
+        await getAccessToken(env);
+        console.log("Cron: refresh token do Gmail renovado com sucesso (mantém-se ativo).");
+      } catch (err) {
+        console.error("Cron: falha ao renovar refresh token do Gmail:", err);
+      }
+      return;
+    }
 
-    try {
-      await getAccessToken(env);
-      console.log("Cron: refresh token do Gmail renovado com sucesso (mantém-se ativo).");
-    } catch (err) {
-      console.error("Cron: falha ao renovar refresh token do Gmail:", err);
+    if (controller.cron === "0 */6 * * *") {
+      // De 6 em 6 horas: repõe a conta demo, rede de segurança para
+      // quem fecha o browser sem clicar em "Sair" (que já faz o
+      // mesmo reset de imediato -- ver POST /api/auth/logout).
+      try {
+        await resetDemoAccount(env.DB);
+        console.log("Cron: conta de demonstração reposta ao estado inicial.");
+      } catch (err) {
+        console.error("Cron: falha ao repor conta de demonstração:", err);
+      }
+      return;
     }
   },
 };

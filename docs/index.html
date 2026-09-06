@@ -475,6 +475,29 @@
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 const sessionToken = localStorage.getItem("pt_session");
 
+// ---------- banner de modo de demonstração ----------
+// Mesma função autocontida usada em conta.html e publicar.html --
+// não há CSS partilhado entre páginas neste projeto, por isso o
+// estilo vai embutido aqui em vez de duplicado num ficheiro à parte.
+function showDemoBanner() {
+  if (document.getElementById("demo-mode-banner")) return;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #demo-mode-banner {
+      position: sticky; top: 0; z-index: 100;
+      background: #8a5a1f; color: white; text-align: center;
+      padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 600;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const banner = document.createElement("div");
+  banner.id = "demo-mode-banner";
+  banner.textContent = "🔎 Estás em modo de demonstração — nada do que fizeres aqui fica guardado.";
+  document.body.insertBefore(banner, document.body.firstChild);
+}
+
 const input = document.getElementById("ref-input");
 const btn = document.getElementById("search-btn");
 const resultsArea = document.getElementById("results-area");
@@ -724,6 +747,7 @@ if (sessionToken) {
       if (data?.dealer?.id) {
         myDealerId = data.dealer.id;
       }
+      if (data?.dealer?.is_demo) showDemoBanner();
     })
     .catch(() => {})
     .finally(() => loadAllListings()); // só carrega depois de saber (ou não) o dealerId

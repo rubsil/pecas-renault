@@ -88,6 +88,10 @@
   .message.success { background: var(--accent-soft); color: var(--accent-text); }
   .message.error { background: var(--danger-soft); color: var(--danger); }
 
+  .demo-login-link { text-align: center; margin-top: 1.5rem; }
+  .demo-login-link a { color: var(--ink-faint); font-size: 0.8rem; text-decoration: none; }
+  .demo-login-link a:hover { color: var(--ink-soft); text-decoration: underline; }
+
   .code-input {
     text-align: center; font-family: var(--mono); font-size: 1.4rem;
     letter-spacing: 0.3em; padding: 0.7rem;
@@ -294,6 +298,10 @@
       </div>
 
       <div class="message" id="login-message"></div>
+
+      <div class="demo-login-link">
+        <a href="#" id="btn-demo-login">Entrar em modo de demonstração →</a>
+      </div>
     </div>
 
     <div class="panel" id="panel-register">
@@ -377,6 +385,29 @@
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 const IMGBB_API_KEY = "11660b9bd954ae9791e204c5360ab132";
 let pendingDealerId = null;
+
+// ---------- banner de modo de demonstração ----------
+// Função autocontida (HTML + CSS injetados via JS) para poder ser
+// reaproveitada tal e qual em index.html e publicar.html, sem
+// duplicar estilos num ficheiro CSS partilhado que não existe hoje.
+function showDemoBanner() {
+  if (document.getElementById("demo-mode-banner")) return; // evita duplicar se já estiver visível
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #demo-mode-banner {
+      position: sticky; top: 0; z-index: 100;
+      background: #8a5a1f; color: white; text-align: center;
+      padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 600;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const banner = document.createElement("div");
+  banner.id = "demo-mode-banner";
+  banner.textContent = "🔎 Estás em modo de demonstração — nada do que fizeres aqui fica guardado.";
+  document.body.insertBefore(banner, document.body.firstChild);
+}
 
 // ---------- esconder o campo de código de acesso se o registo estiver aberto ----------
 // Sem isto, quem se regista via um link com registo aberto (sem
@@ -689,6 +720,31 @@ document.getElementById("btn-request-code").addEventListener("click", async () =
   }
 });
 
+// ---------- login em modo de demonstração ----------
+document.getElementById("btn-demo-login").addEventListener("click", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("login-message");
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/demo-login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phone: "demo", email: "modo@demo" }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Não foi possível entrar em modo de demonstração.", "error");
+      return;
+    }
+
+    localStorage.setItem("pt_session", data.sessionToken);
+    location.reload(); // recarrega para o resto da página (loadDashboard, banner) arrancar do zero
+  } catch (err) {
+    showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
+  }
+});
+
 // ---------- contador do código de acesso ----------
 let codeCountdownInterval = null;
 
@@ -748,10 +804,29 @@ document.getElementById("btn-redeem-code").addEventListener("click", async () =>
 });
 
 // ---------- logout ----------
-document.getElementById("btn-logout").addEventListener("click", () => {
+document.getElementById("btn-logout").addEventListener("click", async () => {
+  const token = localStorage.getItem("pt_session");
+
+  // Chama o backend antes de limpar a sessão local -- é este pedido
+  // que dispara o reset da conta demo (ver POST /api/auth/logout).
+  // Numa conta normal, este pedido não tem efeito nenhum a não ser
+  // confirmar que a sessão terminou; nunca bloqueia o logout mesmo
+  // que a chamada falhe (ex: sem rede).
+  if (token) {
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      // falha silenciosa -- o logout local continua a acontecer de qualquer forma
+    }
+  }
+
   localStorage.removeItem("pt_session");
   document.getElementById("dashboard-view").classList.remove("show");
   document.getElementById("auth-view").style.display = "block";
+  location.reload(); // garante que o banner de modo demo desaparece, se estava visível
 });
 
 // ---------- dashboard ----------
@@ -769,6 +844,8 @@ async function loadDashboard() {
     document.getElementById("auth-view").style.display = "none";
     document.getElementById("dashboard-view").classList.add("show");
     document.getElementById("dash-company-name").textContent = meData.dealer.company_name;
+
+    if (meData.dealer.is_demo) showDemoBanner();
 
     const verifyEl = document.getElementById("verify-status");
     if (meData.dealer.verified) {

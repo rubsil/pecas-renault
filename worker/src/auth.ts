@@ -3,7 +3,7 @@
 // O concessionário pede um código, recebe por email, usa-o para entrar.
 // O token de sessão resultante é um UUID guardado em dealers.login_token.
 
-function randomToken(bytes = 32): string {
+export function randomToken(bytes = 32): string {
   const arr = new Uint8Array(bytes);
   crypto.getRandomValues(arr);
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
