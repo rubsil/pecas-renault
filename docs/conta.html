@@ -251,15 +251,15 @@
 
         <label for="login-email">Email da conta</label>
         <input type="email" id="login-email" placeholder="pecas@exemplo.pt" />
-        <div class="hint">Pedimos os dois porque algumas lojas de uma mesma cadeia partilham o telefone da central.</div>
-        <div class="hint">Enviamos um código de acesso para este número.</div>
+        <div class="hint">Pedimos os dois porque alguns concessionários de uma mesma cadeia partilham o telefone da central.</div>
+        <div class="hint">Enviamos um código de acesso para este email.</div>
         <button class="submit" id="btn-request-code">Pedir código</button>
       </div>
 
       <div id="login-step-code" style="display: none;">
         <label for="login-code">Código de acesso</label>
         <input type="text" id="login-code" class="code-input" maxlength="6" placeholder="000000" />
-        <div class="hint">Válido por 15 minutos.</div>
+        <div class="hint" id="code-countdown-hint">Válido por 15 minutos.</div>
         <button class="submit" id="btn-redeem-code">Entrar</button>
       </div>
 
@@ -288,7 +288,7 @@
 
       <label for="reg-postal">Código postal</label>
       <input type="text" id="reg-postal" placeholder="ex: 2710-034" />
-      <div class="hint">Ajuda-nos a confirmar automaticamente a tua loja, sobretudo se fizeres parte de uma cadeia com vários pontos (Carby, Santogal, etc).</div>
+      <div class="hint">Ajuda-nos a confirmar automaticamente o teu concessionário, sobretudo se fizeres parte de uma cadeia com vários pontos (Carby, Santogal, etc).</div>
 
       <label for="reg-access-code">Código de acesso</label>
       <input type="text" id="reg-access-code" placeholder="fornecido no email de apresentação" />
@@ -624,10 +624,35 @@ document.getElementById("btn-request-code").addEventListener("click", async () =
     document.getElementById("login-step-phone").style.display = "none";
     document.getElementById("login-step-code").style.display = "block";
     showMessage(msg, data.devCode ? `Código de teste: ${data.devCode}` : "Código enviado para o email.", "success");
+    startCodeCountdown(15 * 60); // 15 minutos, mesmo prazo definido no backend (worker/src/auth.ts)
   } catch (err) {
     showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
   }
 });
+
+// ---------- contador do código de acesso ----------
+let codeCountdownInterval = null;
+
+function startCodeCountdown(totalSeconds) {
+  clearInterval(codeCountdownInterval); // por segurança, se já houvesse um a correr
+  let remaining = totalSeconds;
+  const hintEl = document.getElementById("code-countdown-hint");
+
+  function render() {
+    if (remaining <= 0) {
+      clearInterval(codeCountdownInterval);
+      hintEl.textContent = "Código expirado. Pede um novo.";
+      return;
+    }
+    const minutes = Math.floor(remaining / 60);
+    const seconds = remaining % 60;
+    hintEl.textContent = `Válido por ${minutes}:${String(seconds).padStart(2, "0")}.`;
+    remaining--;
+  }
+
+  render(); // mostra já o valor inicial, sem esperar 1s pelo primeiro tick
+  codeCountdownInterval = setInterval(render, 1000);
+}
 
 // ---------- login: trocar código ----------
 document.getElementById("btn-redeem-code").addEventListener("click", async () => {

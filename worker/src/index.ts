@@ -973,12 +973,34 @@ export default {
           .run();
       }
 
-      await logAdminActivity(env.DB, "official_dealer_updated", "official_dealer", officialId, JSON.stringify(body));
+      // Busca o nome antes de gravar o log -- sem isto, o histórico só
+      // mostrava o JSON do que foi alterado (ex: coordenadas em bruto),
+      // sem indicar a qual concessionário isso pertencia. Só a query
+      // mínima (nome), não o registo todo, para não sobrecarregar.
+      const officialForLog = await env.DB
+        .prepare("SELECT company_name FROM official_dealers WHERE id = ?")
+        .bind(officialId)
+        .first<{ company_name: string }>();
+
+      await logAdminActivity(
+        env.DB,
+        "official_dealer_updated",
+        "official_dealer",
+        officialId,
+        `${officialForLog?.company_name || "?"} — ${JSON.stringify(body)}`
+      );
       return json({ message: "Loja atualizada." });
     }
 
     if (officialMatch && request.method === "DELETE") {
       const officialId = Number(officialMatch[1]);
+
+      // Busca o nome antes de eliminar -- depois de apagado já não
+      // dá para consultar, e o log ficaria sem indicar quem era.
+      const officialToDelete = await env.DB
+        .prepare("SELECT company_name FROM official_dealers WHERE id = ?")
+        .bind(officialId)
+        .first<{ company_name: string }>();
 
       // Não elimina em cascata: se houver uma conta ligada a esta loja,
       // essa conta fica órfã (official_dealer_id passa a apontar para
@@ -986,7 +1008,7 @@ export default {
       // nessa direção) -- desliga-se a referência antes de remover.
       await env.DB.prepare("UPDATE dealers SET official_dealer_id = NULL WHERE official_dealer_id = ?").bind(officialId).run();
       await env.DB.prepare("DELETE FROM official_dealers WHERE id = ?").bind(officialId).run();
-      await logAdminActivity(env.DB, "official_dealer_deleted", "official_dealer", officialId, null);
+      await logAdminActivity(env.DB, "official_dealer_deleted", "official_dealer", officialId, officialToDelete?.company_name || null);
       return json({ message: "Loja removida da lista oficial." });
     }
 
@@ -1210,10 +1232,20 @@ export default {
       values.push(dealerId);
       await env.DB.prepare(`UPDATE dealers SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
 
+      // Busca o nome da conta para o log ficar identificável -- o
+      // pedido nem sempre inclui companyName (ex: só marcar
+      // verified/emailConfirmed), por isso não dá para confiar só em
+      // body.companyName como já acontecia antes desta correção.
+      const dealerForLog = await env.DB
+        .prepare("SELECT company_name FROM dealers WHERE id = ?")
+        .bind(dealerId)
+        .first<{ company_name: string }>();
+      const dealerName = dealerForLog?.company_name || "?";
+
       if (typeof body.verified === "boolean" && body.verified) {
-        await logAdminActivity(env.DB, "dealer_verified", "dealer", dealerId, body.companyName || null);
+        await logAdminActivity(env.DB, "dealer_verified", "dealer", dealerId, dealerName);
       } else {
-        await logAdminActivity(env.DB, "dealer_updated", "dealer", dealerId, JSON.stringify(body));
+        await logAdminActivity(env.DB, "dealer_updated", "dealer", dealerId, `${dealerName} — ${JSON.stringify(body)}`);
       }
 
       return json({ message: "Conta atualizada." });
@@ -1263,9 +1295,9 @@ export default {
       const dealerId = Number(geocodeMatch[1]);
 
       const dealer = await env.DB
-        .prepare("SELECT id, address, postal_code, city FROM dealers WHERE id = ?")
+        .prepare("SELECT id, company_name, address, postal_code, city FROM dealers WHERE id = ?")
         .bind(dealerId)
-        .first<{ id: number; address: string | null; postal_code: string | null; city: string | null }>();
+        .first<{ id: number; company_name: string; address: string | null; postal_code: string | null; city: string | null }>();
 
       if (!dealer) return json({ error: "Conta não encontrada." }, { status: 404 });
       if (!dealer.city && !dealer.postal_code) {
@@ -1282,7 +1314,7 @@ export default {
         .bind(result.lat, result.lon, dealerId)
         .run();
 
-      await logAdminActivity(env.DB, "dealer_geocoded", "dealer", dealerId, `${result.lat}, ${result.lon}`);
+      await logAdminActivity(env.DB, "dealer_geocoded", "dealer", dealerId, `${dealer.company_name} — ${result.lat}, ${result.lon}`);
 
       return json({ message: "Coordenadas encontradas e guardadas.", lat: result.lat, lon: result.lon });
     }
