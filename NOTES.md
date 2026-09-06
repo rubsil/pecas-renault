@@ -220,6 +220,11 @@ ImgBB só permite fazer uploads, não dá acesso a nada sensível nem
 Limite de 6 fotos por peça, controlado no backend (`POST
 /api/listings/:id/photos` recusa a 7ª).
 
+Painel de admin também mostra as fotos de qualquer peça (separador
+Peças, coluna "Fotos") e permite eliminar qualquer uma, sem restrição
+de dono -- útil para moderação (ex: foto errada, desfocada, ou de
+outra peça por engano).
+
 **Eliminar uma foto no dashboard não a apaga do ImgBB.** A `delete_url`
 que o ImgBB devolve no upload é uma página feita para um humano abrir
 e confirmar num clique -- não é um endpoint de API real (o domínio da

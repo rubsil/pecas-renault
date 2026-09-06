@@ -141,6 +141,17 @@
     border: 1px solid var(--line); border-radius: 3px;
   }
 
+  .admin-listing-photos { display: flex; flex-wrap: wrap; gap: 0.4rem; max-width: 180px; }
+  .admin-photo-item { position: relative; width: 3.2rem; height: 3.2rem; }
+  .admin-photo-item img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 3px; border: 1px solid var(--line);
+  }
+  .admin-photo-remove {
+    position: absolute; top: -0.3rem; right: -0.3rem; width: 1rem; height: 1rem;
+    background: var(--danger); color: white; border: none; border-radius: 50%;
+    cursor: pointer; font-size: 0.6rem; display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+
   .badge { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 3px; white-space: nowrap; display: inline-block; }
   a.badge { text-decoration: none; cursor: pointer; }
   a.badge:hover { opacity: 0.75; }
@@ -1316,7 +1327,13 @@ function renderListings(listings) {
   if (!sortState.listings) sortState.listings = { field: "created_at", dir: -1 };
   const sorted = sortRows("listings", listings, "created_at");
 
-  const rows = sorted.map(l => `
+  const rows = sorted.map(l => {
+    const photos = (l.photos_data || "").split("|||").filter(Boolean).map(item => {
+      const [id, url, thumb] = item.split(":::");
+      return { id, url, thumb: thumb || url };
+    });
+
+    return `
     <tr data-id="${l.id}">
       <td><input class="editable" data-field="reference" value="${escapeAttr(l.reference)}" /></td>
       <td><input class="editable" data-field="description" value="${escapeAttr(l.description || "")}" /></td>
@@ -1341,13 +1358,25 @@ function renderListings(listings) {
         ${l.updated_at && l.updated_at !== l.created_at ? `<div>atualizada: ${formatDate(l.updated_at)}</div>` : ""}
       </td>
       <td>
+        ${photos.length > 0
+          ? `<div class="admin-listing-photos">${photos.map(p => `
+              <div class="admin-photo-item">
+                <a href="${escapeAttr(p.url)}" target="_blank" rel="noopener"><img src="${escapeAttr(p.thumb)}" loading="lazy" /></a>
+                <button type="button" class="admin-photo-remove" data-listing-id="${l.id}" data-photo-id="${p.id}" title="Eliminar foto">✕</button>
+              </div>
+            `).join("")}</div>`
+          : '<span class="hint" style="font-size: 0.75rem;">sem fotos</span>'
+        }
+      </td>
+      <td>
         <div class="row-actions">
           <button class="btn-mini save" data-action="save-listing" data-id="${l.id}">Guardar</button>
           <button class="btn-mini delete" data-action="delete-listing" data-id="${l.id}">Eliminar</button>
         </div>
       </td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   area.innerHTML = `
     <table>
@@ -1360,6 +1389,7 @@ function renderListings(listings) {
           <th class="sortable" data-sort-field="status">Estado${sortArrow("listings", "status")}</th>
           <th class="sortable" data-sort-field="company_name">Concessionário${sortArrow("listings", "company_name")}</th>
           <th class="sortable" data-sort-field="created_at">Datas${sortArrow("listings", "created_at")}</th>
+          <th>Fotos</th>
           <th></th>
         </tr>
       </thead>
@@ -1386,6 +1416,15 @@ function renderListings(listings) {
 
   area.querySelectorAll("th.sortable").forEach(th => {
     th.addEventListener("click", () => setSortField("listings", th.dataset.sortField, applyListingsFilter));
+  });
+
+  area.querySelectorAll(".admin-photo-remove").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Eliminar esta foto? (a imagem em si continua no ImgBB, só deixa de estar associada a esta peça)")) return;
+      await adminFetch(`/api/admin/listings/${btn.dataset.listingId}/photos/${btn.dataset.photoId}`, { method: "DELETE" });
+      showToast("Foto removida.");
+      loadListings();
+    });
   });
 
   area.querySelectorAll('[data-action="save-listing"]').forEach(btn => {

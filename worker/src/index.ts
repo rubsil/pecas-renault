@@ -14,6 +14,7 @@
 //   GET  /api/listings/map            — concessionários com peças ativas, agrupados, com coordenadas
 //   POST /api/listings/:id/photos     — regista uma foto já enviada ao ImgBB (autenticado, dono)
 //   DELETE /api/listings/:id/photos/:photoId — remove uma foto (autenticado, dono)
+//   DELETE /api/admin/listings/:id/photos/:photoId — remove qualquer foto (admin, sem restrição de dono)
 //   GET  /api/listings/search?ref=... — pesquisa por referência
 //   GET  /api/listings/mine           — listagens do próprio concessionário (autenticado)
 //
@@ -1326,13 +1327,24 @@ export default {
           `SELECT pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes,
                   pl.status, pl.created_at, pl.updated_at,
                   d.id AS dealer_id, d.company_name,
-                  (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
+                  (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
+                  (SELECT GROUP_CONCAT(lp.id || ':::' || lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            ORDER BY pl.created_at DESC`
         )
         .all();
       return json({ results: rows.results || [] });
+    }
+
+    // ---------- eliminar qualquer foto (admin, sem restrição de dono) ----------
+    const adminDeletePhotoMatch = path.match(/^\/api\/admin\/listings\/(\d+)\/photos\/(\d+)$/);
+    if (adminDeletePhotoMatch && request.method === "DELETE") {
+      const listingId = Number(adminDeletePhotoMatch[1]);
+      const photoId = Number(adminDeletePhotoMatch[2]);
+      await env.DB.prepare("DELETE FROM listing_photos WHERE id = ? AND listing_id = ?").bind(photoId, listingId).run();
+      await logAdminActivity(env.DB, "photo_deleted", "listing", listingId, `foto ${photoId}`);
+      return json({ message: "Foto removida." });
     }
 
     // ---------- editar qualquer peça ----------
