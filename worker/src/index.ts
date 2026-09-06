@@ -638,7 +638,7 @@ export default {
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
              d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified, d.lat, d.lon,
              (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
-             (SELECT GROUP_CONCAT(lp.url, '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photo_urls
+             (SELECT GROUP_CONCAT(lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            WHERE pl.status = 'active'
@@ -720,7 +720,7 @@ export default {
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
              d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified,
              (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
-             (SELECT GROUP_CONCAT(lp.url, '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photo_urls
+             (SELECT GROUP_CONCAT(lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            LEFT JOIN listing_alt_references alt ON alt.listing_id = pl.id
@@ -743,7 +743,7 @@ export default {
         .prepare(
           `SELECT pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.status, pl.created_at,
                   (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
-                  (SELECT GROUP_CONCAT(lp.id || ':' || lp.url, '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_with_ids
+                  (SELECT GROUP_CONCAT(lp.id || ':::' || lp.url || ':::' || COALESCE(lp.thumb_url, lp.url) || ':::' || COALESCE(lp.delete_url, ''), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
            FROM parts_listings pl WHERE pl.dealer_id = ? ORDER BY pl.created_at DESC`
         )
         .bind(dealerIdOrResponse)

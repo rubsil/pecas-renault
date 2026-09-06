@@ -220,6 +220,21 @@ ImgBB só permite fazer uploads, não dá acesso a nada sensível nem
 Limite de 6 fotos por peça, controlado no backend (`POST
 /api/listings/:id/photos` recusa a 7ª).
 
+**Eliminar uma foto não a apaga do ImgBB automaticamente.** A
+`delete_url` que o ImgBB devolve no upload é uma página feita para um
+humano abrir e confirmar num clique -- não é um endpoint de API que
+aceite DELETE/POST programático (confirmado: chamá-la diretamente do
+código não tem efeito nenhum, é limitação do próprio serviço, não
+bug nosso). Por isso, ao eliminar uma foto no dashboard, o site abre
+essa `delete_url` automaticamente numa nova aba, e a pessoa só precisa
+de confirmar lá -- um clique extra, mas sem ter de procurar
+manualmente a imagem no ImgBB depois.
+
+A pré-visualização usa sempre `thumb_url` (miniatura mais pequena,
+carrega mais rápido), e só mostra a imagem em tamanho completo
+(`url`) quando se clica -- importante para fotos grandes não
+tornarem a página lenta a carregar.
+
 ## Nome da empresa no registo — nota prática
 
 A lista oficial da Renault usa muitas vezes um nome comercial

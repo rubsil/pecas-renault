@@ -207,6 +207,11 @@
     border-radius: var(--radius);
     border: 1px solid var(--line);
   }
+  .result-photos-indicator {
+    grid-column: 1 / -1;
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
 
   .result-qty {
     font-family: var(--mono);
@@ -306,8 +311,10 @@
 
   .view-toggle {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
     margin-bottom: 1.25rem;
+    flex-wrap: wrap;
   }
   .view-toggle-btn {
     padding: 0.4rem 0.9rem;
@@ -324,6 +331,16 @@
     background: var(--ink);
     color: var(--paper);
   }
+  .photo-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    margin-left: auto;
+    cursor: pointer;
+  }
+  .photo-toggle-label input { cursor: pointer; }
 
   .map-container {
     width: 100%;
@@ -425,6 +442,10 @@
   <div class="view-toggle">
     <button class="view-toggle-btn active" id="btn-view-list">Lista</button>
     <button class="view-toggle-btn" id="btn-view-map">Mapa</button>
+    <label class="photo-toggle-label">
+      <input type="checkbox" id="toggle-photo-thumbnails" checked />
+      Mostrar miniaturas de fotos
+    </label>
   </div>
 
   <div id="results-area">
@@ -458,7 +479,14 @@ const input = document.getElementById("ref-input");
 const btn = document.getElementById("search-btn");
 const resultsArea = document.getElementById("results-area");
 
+let lastRenderedResults = [];
+let lastRenderedEmptyMessage = "";
+let showPhotoThumbnails = true;
+
 function renderResults(results, emptyMessage) {
+  lastRenderedResults = results;
+  lastRenderedEmptyMessage = emptyMessage;
+
   if (results.length === 0) {
     resultsArea.innerHTML = `
       <div class="empty-state">
@@ -483,11 +511,20 @@ function renderResults(results, emptyMessage) {
       ? `<span class="badge-distance">a ${r.distance_km} km</span>`
       : "";
 
-    const photoUrls = r.photo_urls ? r.photo_urls.split("|||") : [];
-    const photosHtml = photoUrls.length > 0
-      ? `<div class="result-photos">${photoUrls.map(url =>
-          `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" loading="lazy" /></a>`
-        ).join("")}</div>`
+    const photos = r.photos_data
+      ? r.photos_data.split("|||").map(item => {
+          const [url, thumb] = item.split(":::");
+          return { url, thumb: thumb || url };
+        })
+      : [];
+
+    const photosHtml = photos.length > 0
+      ? (showPhotoThumbnails
+          ? `<div class="result-photos">${photos.map(p =>
+              `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.thumb)}" loading="lazy" /></a>`
+            ).join("")}</div>`
+          : `<div class="result-photos-indicator">📷 ${photos.length} foto${photos.length === 1 ? "" : "s"} disponíve${photos.length === 1 ? "l" : "is"}</div>`
+        )
       : "";
 
     card.innerHTML = `
@@ -531,6 +568,13 @@ async function loadAllListings() {
     resultsArea.innerHTML = '<div class="status-line">Erro de ligação. Tenta novamente.</div>';
   }
 }
+
+document.getElementById("toggle-photo-thumbnails").addEventListener("change", (e) => {
+  showPhotoThumbnails = e.target.checked;
+  // Reaproveita os resultados já carregados -- não faz sentido pedir
+  // tudo outra vez ao Worker só para trocar entre miniatura e texto.
+  renderResults(lastRenderedResults, lastRenderedEmptyMessage);
+});
 
 // ---------- mapa ----------
 let leafletMap = null;

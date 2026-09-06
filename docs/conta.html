@@ -723,12 +723,12 @@ function renderMyListings(listings, token) {
 
     const statusLabel = { active: "disponível", sold: "vendida" }[l.status] || l.status;
 
-    // photos_with_ids vem como "id1:url1|||id2:url2|||...". Usa
-    // indexOf/slice (não split(':')) porque a própria URL tem ':'
-    // lá dentro (https://...) -- split(':') simples partiria errado.
-    const photos = (l.photos_with_ids || "").split("|||").filter(Boolean).map(item => {
-      const colonIndex = item.indexOf(":");
-      return { id: item.slice(0, colonIndex), url: item.slice(colonIndex + 1) };
+    // photos_data vem como "id:::url:::thumb:::delete|||id:::url:::thumb:::delete|||...".
+    // Separador ':::' escolhido de propósito para nunca colidir com
+    // o ':' que já existe dentro das URLs (https://...).
+    const photos = (l.photos_data || "").split("|||").filter(Boolean).map(item => {
+      const [id, url, thumb, deleteUrl] = item.split(":::");
+      return { id, url, thumb: thumb || url, deleteUrl: deleteUrl || null };
     });
 
     row.innerHTML = `
@@ -752,8 +752,8 @@ function renderMyListings(listings, token) {
           <div class="listing-photos" id="listing-photos-${l.id}">
             ${photos.map(p => `
               <div class="listing-photo-item">
-                <a href="${escapeAttrLocal(p.url)}" target="_blank" rel="noopener"><img src="${escapeAttrLocal(p.url)}" loading="lazy" /></a>
-                <button type="button" class="listing-photo-remove" data-listing-id="${l.id}" data-photo-id="${p.id}" title="Eliminar foto">✕</button>
+                <a href="${escapeAttrLocal(p.url)}" target="_blank" rel="noopener"><img src="${escapeAttrLocal(p.thumb)}" loading="lazy" /></a>
+                <button type="button" class="listing-photo-remove" data-listing-id="${l.id}" data-photo-id="${p.id}" data-delete-url="${escapeAttrLocal(p.deleteUrl || "")}" title="Eliminar foto">✕</button>
               </div>
             `).join("")}
           </div>
@@ -790,7 +790,7 @@ function renderMyListings(listings, token) {
     const photosContainer = document.getElementById(`listing-photos-${l.id}`);
     if (photosContainer) {
       photosContainer.querySelectorAll(".listing-photo-remove").forEach(btn => {
-        btn.addEventListener("click", () => deleteListingPhoto(btn.dataset.listingId, btn.dataset.photoId, token));
+        btn.addEventListener("click", () => deleteListingPhoto(btn.dataset.listingId, btn.dataset.photoId, btn.dataset.deleteUrl, token));
       });
     }
 
@@ -879,12 +879,24 @@ async function saveListingEdit(listingId, token) {
   loadDashboard();
 }
 
-async function deleteListingPhoto(listingId, photoId, token) {
+async function deleteListingPhoto(listingId, photoId, deleteUrl, token) {
   if (!confirm("Eliminar esta foto?")) return;
+
   await fetch(`${API_BASE}/api/listings/${listingId}/photos/${photoId}`, {
     method: "DELETE",
     headers: { authorization: `Bearer ${token}` },
   });
+
+  // O ImgBB não tem uma API de eliminação programática real -- a
+  // delete_url é uma página feita para um humano clicar e confirmar,
+  // não um endpoint que aceita DELETE/POST diretamente (confirmado:
+  // chamá-la programaticamente não remove a imagem). Abrir numa nova
+  // aba deixa a pessoa confirmar com um clique extra, sem teres de
+  // repetir manualmente o processo todo de encontrar a imagem.
+  if (deleteUrl) {
+    window.open(deleteUrl, "_blank", "noopener");
+  }
+
   loadDashboard();
 }
 
