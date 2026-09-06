@@ -881,8 +881,8 @@ function renderDealers(dealers) {
         ${d.is_demo ? '<span class="badge demo">DEMO</span> ' : ""}
         <input class="editable company-name-field" data-field="companyName" value="${escapeAttr(d.company_name)}" />
       </td>
-      <td><input class="editable phone-field" data-field="phone" value="${escapeAttr(d.phone)}" /></td>
-      <td><input class="editable email-field" data-field="email" value="${escapeAttr(d.email)}" /></td>
+      <td><input class="editable phone-field" data-field="phone" value="${escapeAttr(d.phone)}" ${d.is_demo ? 'disabled title="Telefone fixo da conta de demonstração, não editável"' : ""} /></td>
+      <td><input class="editable email-field" data-field="email" value="${escapeAttr(d.email)}" ${d.is_demo ? 'disabled title="Email fixo da conta de demonstração, não editável"' : ""} /></td>
       <td><input class="editable city-field" data-field="city" value="${escapeAttr(d.city || "")}" /></td>
       <td>
         ${d.verified ? '<span class="badge ok">verificado</span>' : '<span class="badge pending">pendente</span>'}

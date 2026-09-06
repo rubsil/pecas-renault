@@ -360,6 +360,23 @@ O botão "Reenviar código" nunca aparece para esta conta (já tem
 `email_confirmed = 1` fixo desde a migração), por isso não há risco
 de tentar enviar um código real para o endereço fictício `modo@demo`.
 
+**Telefone e email são fixos, mesmo pelo admin.** O login demo
+(`POST /api/auth/demo-login`) compara sempre contra as strings fixas
+`"demo"` / `"modo@demo"` escritas no código -- nunca consulta a base
+de dados. Editar esses dois campos pelo admin não mudaria o login
+(continuaria a exigir os valores fixos), e o próximo reset (logout ou
+Cron de 6h) reporia os valores originais de qualquer forma -- ficaria
+confuso sem trazer benefício real. Por isso, `PATCH /api/admin/dealers/:id`
+recusa explicitamente alterações a `phone`/`email` quando o `id` é o
+da conta demo (outros campos, como `city`, continuam editáveis
+normalmente). No frontend, os campos aparecem desativados
+(`disabled`) só nesta linha da tabela, com tooltip a explicar porquê.
+
+Se um dia for preciso mudar as credenciais fixas de demonstração
+(ex: por segurança, ou para algo mais memorável), isso é feito
+diretamente no código (`worker/src/index.ts`, rota `demo-login`), não
+pelo painel de admin.
+
 ## Nome da empresa no registo — nota prática
 
 A lista oficial da Renault usa muitas vezes um nome comercial

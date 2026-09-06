@@ -1361,14 +1361,15 @@ export default {
 
       const fields: string[] = [];
       const values: any[] = [];
+      const isDemoAccount = dealerId === DEMO_DEALER_ID;
 
       if (typeof body.companyName === "string") { fields.push("company_name = ?"); values.push(body.companyName); }
       if (typeof body.contactName === "string") { fields.push("contact_name = ?"); values.push(body.contactName); }
-      if (typeof body.phone === "string") {
+      if (typeof body.phone === "string" && !isDemoAccount) {
         fields.push("phone = ?", "phone_normalized = ?");
         values.push(body.phone, normalizePhone(body.phone));
       }
-      if (typeof body.email === "string") { fields.push("email = ?"); values.push(body.email); }
+      if (typeof body.email === "string" && !isDemoAccount) { fields.push("email = ?"); values.push(body.email); }
       if (typeof body.city === "string") { fields.push("city = ?"); values.push(body.city); }
       if (typeof body.postalCode === "string") { fields.push("postal_code = ?"); values.push(body.postalCode); }
       if (typeof body.verified === "boolean") {
@@ -1381,7 +1382,12 @@ export default {
       }
       if (typeof body.emailConfirmed === "boolean") { fields.push("email_confirmed = ?"); values.push(body.emailConfirmed ? 1 : 0); }
 
-      if (fields.length === 0) return json({ error: "Nada para atualizar." }, { status: 400 });
+      if (fields.length === 0) {
+        if (isDemoAccount && (typeof body.phone === "string" || typeof body.email === "string")) {
+          return json({ error: "Telefone e email da conta de demonstração são fixos e não podem ser alterados." }, { status: 400 });
+        }
+        return json({ error: "Nada para atualizar." }, { status: 400 });
+      }
 
       values.push(dealerId);
       await env.DB.prepare(`UPDATE dealers SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
