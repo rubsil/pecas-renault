@@ -220,15 +220,23 @@ ImgBB só permite fazer uploads, não dá acesso a nada sensível nem
 Limite de 6 fotos por peça, controlado no backend (`POST
 /api/listings/:id/photos` recusa a 7ª).
 
-**Eliminar uma foto não a apaga do ImgBB automaticamente.** A
-`delete_url` que o ImgBB devolve no upload é uma página feita para um
-humano abrir e confirmar num clique -- não é um endpoint de API que
-aceite DELETE/POST programático (confirmado: chamá-la diretamente do
-código não tem efeito nenhum, é limitação do próprio serviço, não
-bug nosso). Por isso, ao eliminar uma foto no dashboard, o site abre
-essa `delete_url` automaticamente numa nova aba, e a pessoa só precisa
-de confirmar lá -- um clique extra, mas sem ter de procurar
-manualmente a imagem no ImgBB depois.
+**Eliminar uma foto no dashboard não a apaga do ImgBB.** A `delete_url`
+que o ImgBB devolve no upload é uma página feita para um humano abrir
+e confirmar num clique -- não é um endpoint de API real (o domínio da
+delete_url, tipicamente `ibb.co`, não aceita chamadas cross-origin do
+nosso site; e mesmo que aceitasse, é pensada para navegação humana,
+não para ser chamada por código). Testámos abrir a delete_url numa
+nova aba automaticamente, mas foi revertido por ficar uma experiência
+estranha para quem usa o site -- decisão consciente: "eliminar" só
+remove a referência da nossa base de dados, a imagem em si fica órfã
+no ImgBB (sem custo nem exposição associados, já que deixa de estar
+ligada a qualquer peça publicada).
+
+Se um dia for preciso limpar essas imagens órfãs a sério (ex: por
+limite de armazenamento, que hoje não existe no plano gratuito), a
+delete_url continua guardada em `listing_photos.delete_url` -- dá para
+implementar isso manualmente mais tarde se necessário, mas não é
+prioridade agora.
 
 A pré-visualização usa sempre `thumb_url` (miniatura mais pequena,
 carrega mais rápido), e só mostra a imagem em tamanho completo

@@ -887,16 +887,14 @@ async function deleteListingPhoto(listingId, photoId, deleteUrl, token) {
     headers: { authorization: `Bearer ${token}` },
   });
 
-  // O ImgBB não tem uma API de eliminação programática real -- a
-  // delete_url é uma página feita para um humano clicar e confirmar,
-  // não um endpoint que aceita DELETE/POST diretamente (confirmado:
-  // chamá-la programaticamente não remove a imagem). Abrir numa nova
-  // aba deixa a pessoa confirmar com um clique extra, sem teres de
-  // repetir manualmente o processo todo de encontrar a imagem.
-  if (deleteUrl) {
-    window.open(deleteUrl, "_blank", "noopener");
-  }
-
+  // A imagem em si fica órfã no ImgBB (o serviço não expõe uma API
+  // de eliminação real -- a delete_url é uma página pensada para um
+  // humano confirmar manualmente, e nem sequer aceita chamadas deste
+  // site por estar num domínio sem CORS configurado para isso).
+  // Sem custo nem exposição pública associados a essa imagem esquecida
+  // (deixa de estar ligada a qualquer peça nossa), preferimos manter
+  // a experiência simples aqui em vez de abrir outra aba para o
+  // utilizador confirmar manualmente -- ficava estranho.
   loadDashboard();
 }
 
