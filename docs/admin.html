@@ -185,6 +185,7 @@
   .dates-cell { font-size: 0.75rem; color: var(--ink-faint); white-space: nowrap; }
   .mono-cell { font-family: var(--mono); font-weight: 700; }
   .badge-note { font-size: 0.7rem; color: var(--warn); margin-top: 0.2rem; }
+  .alert-dealer-email { font-size: 0.75rem; color: var(--ink-faint); margin-top: 0.15rem; }
 
   .settings-box {
     background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
@@ -1633,7 +1634,10 @@ function renderAlerts(alerts) {
     return `
     <tr>
       <td class="mono-cell">${escapeAttr(a.reference_normalized)}</td>
-      <td>${escapeAttr(a.company_name)}</td>
+      <td>
+        ${escapeAttr(a.company_name)}
+        <div class="alert-dealer-email">${escapeAttr(a.email || "sem email")}</div>
+      </td>
       <td class="dates-cell">${formatDate(a.created_at)}</td>
       <td>${matchCell}</td>
       <td><button class="btn-mini delete" data-action="delete-alert" data-id="${a.id}">Eliminar</button></td>

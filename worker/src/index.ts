@@ -1363,7 +1363,7 @@ export default {
       const rows = await env.DB
         .prepare(
           `SELECT ra.id, ra.reference_normalized, ra.created_at, ra.notified_at,
-                  d.id AS dealer_id, d.company_name,
+                  d.id AS dealer_id, d.company_name, d.email,
                   (SELECT COUNT(*) FROM (
                      SELECT pl.id FROM parts_listings pl
                      WHERE pl.reference_normalized = ra.reference_normalized AND pl.status = 'active'
