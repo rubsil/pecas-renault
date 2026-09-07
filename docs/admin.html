@@ -1638,7 +1638,10 @@ function renderAlerts(alerts) {
         ${escapeAttr(a.company_name)}
         <div class="alert-dealer-email">${escapeAttr(a.email || "sem email")}</div>
       </td>
-      <td class="dates-cell">${formatDate(a.created_at)}</td>
+      <td class="dates-cell">
+        <div>criado: ${formatDateTime(a.created_at)}</div>
+        ${a.last_satisfied_at ? `<div>disponível desde: ${formatDateTime(a.last_satisfied_at)}</div>` : ""}
+      </td>
       <td>${matchCell}</td>
       <td><button class="btn-mini delete" data-action="delete-alert" data-id="${a.id}">Eliminar</button></td>
     </tr>
@@ -1647,7 +1650,7 @@ function renderAlerts(alerts) {
 
   area.innerHTML = `
     <table>
-      <thead><tr><th>Referência</th><th>Pedido por</th><th>Data</th><th>Já há peça?</th><th></th></tr></thead>
+      <thead><tr><th>Referência</th><th>Pedido por</th><th>Datas</th><th>Já há peça?</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;

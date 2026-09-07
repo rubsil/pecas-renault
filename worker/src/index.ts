@@ -1377,7 +1377,8 @@ export default {
                    JOIN dealers d2 ON d2.id = pl2.dealer_id
                    WHERE pl2.status = 'active'
                      AND (pl2.reference_normalized = ra.reference_normalized OR lar2.reference_normalized = ra.reference_normalized)
-                   LIMIT 1) AS match_dealer_name
+                   LIMIT 1) AS match_dealer_name,
+                  (SELECT MAX(ans.sent_at) FROM alert_notifications_sent ans WHERE ans.alert_id = ra.id) AS last_satisfied_at
            FROM reference_alerts ra
            JOIN dealers d ON d.id = ra.dealer_id
            ORDER BY ra.created_at DESC`
