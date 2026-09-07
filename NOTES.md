@@ -120,6 +120,7 @@ D1 → `peca-troca-db` → Console). Histórico:
 - `0008_listing_photos.sql` — tabela `listing_photos` (fotos via ImgBB)
 - `0009_demo_account.sql` — coluna `is_demo` + conta de demonstração fixa (id 999999)
 - `0010_dealer_preferences.sql` — colunas `pref_photo_thumbnails`, `pref_compact_list`
+- `0011_more_dealer_preferences.sql` — colunas `pref_sort_order`, `pref_default_view`
 
 ## Correções manuais na base de dados
 
@@ -408,6 +409,43 @@ principal do ecrã.
 A conta de demonstração restaura estas duas colunas para os valores
 por defeito (`pref_photo_thumbnails = 1`, `pref_compact_list = 0`) no
 reset, tal como o resto dos seus dados.
+
+**Bug corrigido**: a máscara de telefone (`attachPhoneMask()` em
+`conta.html`) removia todos os caracteres não numéricos a cada tecla
+-- isto impedia escrever "demo" no campo de telefone do login,
+bloqueando o acesso à conta de demonstração (que usa essa palavra
+como "telefone", ver rota `/api/auth/demo-login`). Corrigido: se o
+texto tiver alguma letra, a máscara não intervém, deixa passar sem
+formatação.
+
+**Bug corrigido**: o layout das checkboxes de preferência
+(`.pref-toggle-row`) ficava esticado de forma estranha -- o
+`<span>` exterior ao texto não tinha `flex: 1`, o browser distribuía
+o espaço de forma imprevisível entre o checkbox nativo e o texto.
+Corrigido com uma classe explícita (`.pref-toggle-text`) e
+`flex: 0 0 auto` fixo no checkbox.
+
+### Mais duas preferências (migração 0011)
+
+- **Ordenação por defeito** (`pref_sort_order`, `'recent'` ou
+  `'distance'`): controla se `index.html` envia `fromDealerId` no
+  pedido de listagem (o que já ativava a ordenação por distância no
+  backend, lógica pré-existente) -- com `'recent'`, não envia, mesmo
+  havendo `myDealerId` disponível, para a pessoa poder mesmo escolher
+  ver por data. Só tem efeito prático com sessão e coordenadas
+  gravadas; sem isso, é sempre por data, como já era antes.
+- **Vista inicial** (`pref_default_view`, `'list'` ou `'map'`): se
+  for `'map'`, `index.html` simula automaticamente o clique no botão
+  de mapa ao carregar (reaproveita toda a lógica já existente de
+  inicializar o Leaflet, em vez de duplicar código).
+
+Ao contrário das duas primeiras preferências, estas não têm
+equivalente no localStorage -- só fazem sentido com sessão (a
+ordenação por distância precisa de coordenadas da conta; a vista
+inicial não tinha nenhum estado persistido localmente antes desta
+funcionalidade). Editáveis só na aba Preferências do dashboard,
+via dois `<select>` (não checkboxes, por terem mais de duas opções
+nomeadas).
 
 ## Nome da empresa no registo — nota prática
 

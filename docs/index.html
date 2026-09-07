@@ -943,10 +943,17 @@ function renderCompactList(results) {
   `;
 }
 
+// Preferência de ordenação -- só tem efeito prático quando há sessão
+// e coordenadas (ver lógica no backend), mas controla se enviamos
+// fromDealerId ou não: com "recent", não enviamos, mesmo tendo
+// myDealerId disponível, para a pessoa poder mesmo escolher ver por
+// data em vez de por distância.
+let preferDistanceSort = true;
+
 async function loadAllListings() {
   resultsArea.innerHTML = '<div class="status-line">A carregar peças publicadas…</div>';
   try {
-    const url = myDealerId
+    const url = (myDealerId && preferDistanceSort)
       ? `${API_BASE}/api/listings/browse?fromDealerId=${myDealerId}`
       : `${API_BASE}/api/listings/browse`;
     const res = await fetch(url);
@@ -1163,6 +1170,15 @@ if (sessionToken) {
         showCompactList = data.dealer.pref_compact_list === 1;
         localStorage.setItem("pref_compact_list", String(showCompactList));
         document.getElementById("toggle-compact-list").checked = showCompactList;
+      }
+      if (data?.dealer?.pref_sort_order) {
+        preferDistanceSort = data.dealer.pref_sort_order === "distance";
+      }
+      if (data?.dealer?.pref_default_view === "map") {
+        // Simula o clique no botão do mapa -- reaproveita toda a lógica
+        // já existente (inicializar o Leaflet, carregar os pins, trocar
+        // a aba ativa) em vez de duplicar esse código aqui.
+        btnViewMap.click();
       }
     })
     .catch(() => {})

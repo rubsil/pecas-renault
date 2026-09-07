@@ -186,9 +186,22 @@
     background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
     margin-bottom: 0.75rem; cursor: pointer;
   }
-  .pref-toggle-row input { margin-top: 0.2rem; cursor: pointer; flex-shrink: 0; }
+  .pref-toggle-row input[type="checkbox"] {
+    margin: 0.2rem 0 0; cursor: pointer; flex: 0 0 auto; width: 1.1rem; height: 1.1rem;
+  }
+  .pref-toggle-row .pref-toggle-text { flex: 1 1 auto; min-width: 0; }
   .pref-toggle-row strong { display: block; font-size: 0.92rem; margin-bottom: 0.2rem; }
   .pref-toggle-desc { display: block; font-size: 0.82rem; color: var(--ink-faint); }
+
+  .pref-select-row {
+    display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.1rem;
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+    margin-bottom: 0.75rem;
+  }
+  .pref-select-row select {
+    flex: 0 0 auto; padding: 0.5rem 0.7rem; font-size: 0.85rem; border: 1px solid var(--line);
+    border-radius: var(--radius); background: var(--paper); font-family: var(--sans); cursor: pointer;
+  }
 
   .alert-row .alert-cancel-btn {
     background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.8rem; padding: 0.2rem 0.4rem;
@@ -465,18 +478,41 @@
       </div>
       <label class="pref-toggle-row">
         <input type="checkbox" id="pref-photo-thumbnails" />
-        <span>
+        <span class="pref-toggle-text">
           <strong>Mostrar miniaturas de fotos</strong>
           <span class="pref-toggle-desc">Nos resultados de pesquisa, mostra imagens em vez de só o texto "X fotos disponíveis".</span>
         </span>
       </label>
       <label class="pref-toggle-row">
         <input type="checkbox" id="pref-compact-list" />
-        <span>
+        <span class="pref-toggle-text">
           <strong>Lista compacta</strong>
           <span class="pref-toggle-desc">Mostra os resultados de pesquisa numa tabela densa, em vez de cards.</span>
         </span>
       </label>
+
+      <div class="pref-select-row">
+        <span class="pref-toggle-text">
+          <strong>Ordenar resultados por</strong>
+          <span class="pref-toggle-desc">Só tem efeito com sessão iniciada e morada registada -- sem isso, é sempre por data mais recente.</span>
+        </span>
+        <select id="pref-sort-order">
+          <option value="recent">Mais recentes primeiro</option>
+          <option value="distance">Mais próximos primeiro</option>
+        </select>
+      </div>
+
+      <div class="pref-select-row">
+        <span class="pref-toggle-text">
+          <strong>Vista inicial da pesquisa</strong>
+          <span class="pref-toggle-desc">Qual separador abre por defeito ao entrar na página de pesquisa.</span>
+        </span>
+        <select id="pref-default-view">
+          <option value="list">Lista</option>
+          <option value="map">Mapa</option>
+        </select>
+      </div>
+
       <div class="message" id="preferences-message"></div>
     </div>
   </div>
@@ -496,7 +532,16 @@ let pendingDealerId = null;
 function attachPhoneMask(inputEl) {
   if (!inputEl) return;
   inputEl.addEventListener("input", (e) => {
-    const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 9);
+    const raw = e.target.value;
+
+    // A conta de demonstração usa a palavra "demo" como "telefone"
+    // (ver worker/src/index.ts, rota /api/auth/demo-login) -- a
+    // máscara de números não pode impedir escrever isso. Deteta-se
+    // aqui: se o texto tiver alguma letra, é tratado como caso
+    // especial e passa sem qualquer formatação.
+    if (/[a-zA-Z]/.test(raw)) return;
+
+    const digitsOnly = raw.replace(/\D/g, "").slice(0, 9);
     const groups = digitsOnly.match(/.{1,3}/g) || [];
     e.target.value = groups.join(" ");
   });
@@ -1024,6 +1069,12 @@ async function loadDashboard() {
       prefCompactEl.checked = meData.dealer.pref_compact_list === 1;
       localStorage.setItem("pref_compact_list", String(prefCompactEl.checked));
     }
+    if (meData.dealer.pref_sort_order) {
+      document.getElementById("pref-sort-order").value = meData.dealer.pref_sort_order;
+    }
+    if (meData.dealer.pref_default_view) {
+      document.getElementById("pref-default-view").value = meData.dealer.pref_default_view;
+    }
 
     const verifyEl = document.getElementById("verify-status");
     if (meData.dealer.verified) {
@@ -1184,6 +1235,14 @@ document.getElementById("pref-photo-thumbnails").addEventListener("change", (e) 
 
 document.getElementById("pref-compact-list").addEventListener("change", (e) => {
   updatePreference({ compactList: e.target.checked });
+});
+
+document.getElementById("pref-sort-order").addEventListener("change", (e) => {
+  updatePreference({ sortOrder: e.target.value });
+});
+
+document.getElementById("pref-default-view").addEventListener("change", (e) => {
+  updatePreference({ defaultView: e.target.value });
 });
 
 

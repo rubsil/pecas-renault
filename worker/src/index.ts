@@ -153,7 +153,9 @@ async function resetDemoAccount(db: D1Database): Promise<void> {
          lon = NULL,
          verified = 1,
          pref_photo_thumbnails = 1,
-         pref_compact_list = 0
+         pref_compact_list = 0,
+         pref_sort_order = 'recent',
+         pref_default_view = 'list'
        WHERE id = ?`
     )
     .bind(DEMO_DEALER_ID)
@@ -555,7 +557,7 @@ export default {
       const dealer = await env.DB
         .prepare(
           `SELECT id, company_name, contact_name, phone, email, address, postal_code, city, verified, is_demo,
-                  pref_photo_thumbnails, pref_compact_list
+                  pref_photo_thumbnails, pref_compact_list, pref_sort_order, pref_default_view
            FROM dealers WHERE id = ?`
         )
         .bind(dealerIdOrResponse)
@@ -580,6 +582,14 @@ export default {
       if (typeof body?.compactList === "boolean") {
         fields.push("pref_compact_list = ?");
         values.push(body.compactList ? 1 : 0);
+      }
+      if (body?.sortOrder === "recent" || body?.sortOrder === "distance") {
+        fields.push("pref_sort_order = ?");
+        values.push(body.sortOrder);
+      }
+      if (body?.defaultView === "list" || body?.defaultView === "map") {
+        fields.push("pref_default_view = ?");
+        values.push(body.defaultView);
       }
 
       if (fields.length === 0) return json({ error: "Nada para atualizar." }, { status: 400 });
