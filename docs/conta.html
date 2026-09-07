@@ -143,13 +143,16 @@
 
   .dash-contact-card {
     background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
-    padding: 1rem 1.25rem; margin-bottom: 1.5rem; font-size: 0.85rem;
+    padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; font-size: 0.88rem;
   }
-  .dash-contact-card .contact-row { display: flex; gap: 0.5rem; padding: 0.25rem 0; }
+  .dash-contact-card .contact-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 2rem;
+  }
+  .dash-contact-card .contact-row { display: flex; gap: 0.5rem; padding: 0.35rem 0; }
   .dash-contact-card .contact-label { color: var(--ink-faint); min-width: 5.5rem; flex-shrink: 0; }
   .dash-contact-card .contact-value { color: var(--ink); font-weight: 600; }
   .dash-contact-card .contact-note {
-    font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.5rem; font-style: italic;
+    font-size: 0.8rem; color: var(--ink-faint); margin-top: 0.75rem; font-style: italic;
   }
   .dash-contact-card .contact-note a { color: var(--accent-text); font-style: normal; }
 
@@ -182,15 +185,17 @@
   }
 
   .listing-row {
-    padding: 0.7rem 0; border-bottom: 1px solid var(--line);
-    font-size: 0.9rem;
+    padding: 1.1rem 1.3rem; margin-bottom: 0.75rem; font-size: 0.9rem;
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: 0 1px 2px rgba(26,29,26,0.05);
   }
-  .listing-main { display: flex; flex-direction: column; gap: 0.5rem; }
-  .listing-top { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
-  .listing-ref { font-family: var(--mono); font-weight: 700; }
-  .listing-meta { color: var(--ink-faint); font-size: 0.8rem; }
-  .listing-notes { color: var(--ink-faint); font-size: 0.78rem; font-style: italic; margin-top: 0.15rem; }
-  .listing-alt-refs { color: var(--ink-soft); font-size: 0.76rem; font-family: var(--mono); margin-top: 0.1rem; }
+  .listing-main { display: flex; flex-direction: column; gap: 0.6rem; }
+  .listing-top { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; }
+  .listing-info { display: flex; flex-direction: column; gap: 0.2rem; }
+  .listing-ref { font-family: var(--mono); font-weight: 700; font-size: 1.05rem; }
+  .listing-meta { color: var(--ink-faint); font-size: 0.82rem; }
+  .listing-notes { color: var(--ink-faint); font-size: 0.8rem; font-style: italic; margin-top: 0.1rem; }
+  .listing-alt-refs { color: var(--ink-soft); font-size: 0.78rem; font-family: var(--mono); margin-top: 0.1rem; }
 
   .listing-photos { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
   .listing-photo-item { position: relative; width: 4rem; height: 4rem; }
@@ -204,26 +209,31 @@
   }
   .edit-photo-status { font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.3rem; }
 
-  .listing-controls { display: flex; align-items: center; gap: 0.4rem; }
+  /* Controlos com mais presença -- separados em dois grupos visuais
+     (quantidade agrupada num só bloco com fundo; ações à parte), em
+     vez de botões pequenos todos encostados uns aos outros. */
+  .listing-controls { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
+  .qty-group {
+    display: flex; align-items: center; gap: 0.5rem; background: var(--paper);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 0.3rem 0.5rem;
+  }
   .qty-btn {
-    width: 1.8rem; height: 1.8rem; border: 1px solid var(--line); border-radius: var(--radius);
-    background: var(--paper-raised); font-size: 1rem; font-weight: 700; cursor: pointer;
+    width: 2.1rem; height: 2.1rem; border: 1px solid var(--line); border-radius: var(--radius-sm, var(--radius));
+    background: var(--paper-raised); font-size: 1.1rem; font-weight: 700; cursor: pointer;
     display: flex; align-items: center; justify-content: center; color: var(--ink);
   }
   .qty-btn:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); }
   .qty-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .qty-value { font-family: var(--mono); font-weight: 700; min-width: 1.4rem; text-align: center; }
-  .edit-btn {
-    width: 1.8rem; height: 1.8rem; border: 1px solid var(--line); border-radius: var(--radius);
-    background: var(--paper-raised); color: var(--ink-soft); cursor: pointer; margin-left: 0.4rem;
-    font-size: 0.95rem; display: flex; align-items: center; justify-content: center;
+  .qty-value { font-family: var(--mono); font-weight: 700; min-width: 1.6rem; text-align: center; font-size: 1rem; }
+  .listing-actions { display: flex; align-items: center; gap: 0.5rem; }
+  .edit-btn, .delete-btn {
+    width: 2.3rem; height: 2.3rem; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--paper-raised); cursor: pointer;
+    font-size: 1.05rem; display: flex; align-items: center; justify-content: center;
   }
+  .edit-btn { color: var(--ink-soft); }
   .edit-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
-  .delete-btn {
-    width: 1.8rem; height: 1.8rem; border: 1px solid var(--line); border-radius: var(--radius);
-    background: var(--paper-raised); color: var(--danger); cursor: pointer; margin-left: 0.4rem;
-    font-size: 0.95rem; display: flex; align-items: center; justify-content: center;
-  }
+  .delete-btn { color: var(--danger); }
   .delete-btn:hover { background: var(--danger-soft); border-color: var(--danger); }
 
   .listing-edit-form {
@@ -992,10 +1002,12 @@ async function loadDashboard() {
 function renderContactCard(dealer) {
   const card = document.getElementById("dash-contact-card");
   card.innerHTML = `
-    <div class="contact-row"><span class="contact-label">Telefone</span><span class="contact-value">${escapeHtmlLocal(dealer.phone || "—")}</span></div>
-    <div class="contact-row"><span class="contact-label">Email</span><span class="contact-value">${escapeHtmlLocal(dealer.email || "—")}</span></div>
-    <div class="contact-row"><span class="contact-label">Cidade</span><span class="contact-value">${escapeHtmlLocal(dealer.city || "—")}</span></div>
-    ${dealer.address ? `<div class="contact-row"><span class="contact-label">Morada</span><span class="contact-value">${escapeHtmlLocal(dealer.address)}</span></div>` : ""}
+    <div class="contact-grid">
+      <div class="contact-row"><span class="contact-label">Telefone</span><span class="contact-value">${escapeHtmlLocal(dealer.phone || "—")}</span></div>
+      <div class="contact-row"><span class="contact-label">Email</span><span class="contact-value">${escapeHtmlLocal(dealer.email || "—")}</span></div>
+      <div class="contact-row"><span class="contact-label">Cidade</span><span class="contact-value">${escapeHtmlLocal(dealer.city || "—")}</span></div>
+      ${dealer.address ? `<div class="contact-row"><span class="contact-label">Morada</span><span class="contact-value">${escapeHtmlLocal(dealer.address)}</span></div>` : ""}
+    </div>
     <div class="contact-note">
       Estes são os dados que outros concessionários veem quando encontram as tuas peças.
       Para corrigir algo, contacta o administrador da plataforma: <a href="mailto:stockrederenault@gmail.com">stockrederenault@gmail.com</a>.
@@ -1117,18 +1129,22 @@ function renderMyListings(listings, token) {
     row.innerHTML = `
       <div class="listing-main">
         <div class="listing-top">
-          <div>
+          <div class="listing-info">
             <div class="listing-ref">${escapeHtmlLocal(l.reference)}</div>
             <div class="listing-meta">${statusLabel}${l.description ? " · " + escapeHtmlLocal(l.description) : ""}</div>
             ${l.alt_references ? `<div class="listing-alt-refs">Substitui: ${escapeHtmlLocal(l.alt_references)}</div>` : ""}
             ${l.notes ? `<div class="listing-notes">${escapeHtmlLocal(l.notes)}</div>` : ""}
           </div>
           <div class="listing-controls">
-            <button class="qty-btn" data-action="dec" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>−</button>
-            <span class="qty-value">${l.quantity}</span>
-            <button class="qty-btn" data-action="inc" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>+</button>
-            <button class="edit-btn" data-action="edit" data-id="${l.id}" title="Editar descrição/notas">✎</button>
-            <button class="delete-btn" data-action="delete" data-id="${l.id}" title="Eliminar">✕</button>
+            <div class="qty-group">
+              <button class="qty-btn" data-action="dec" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>−</button>
+              <span class="qty-value">${l.quantity}</span>
+              <button class="qty-btn" data-action="inc" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>+</button>
+            </div>
+            <div class="listing-actions">
+              <button class="edit-btn" data-action="edit" data-id="${l.id}" title="Editar descrição/notas">✎</button>
+              <button class="delete-btn" data-action="delete" data-id="${l.id}" title="Eliminar">✕</button>
+            </div>
           </div>
         </div>
         ${photos.length > 0 ? `
