@@ -155,11 +155,106 @@ async function resetDemoAccount(db: D1Database): Promise<void> {
          pref_photo_thumbnails = 1,
          pref_compact_list = 0,
          pref_sort_order = 'recent',
-         pref_default_view = 'list'
+         pref_default_view = 'list',
+         pref_alert_notifications = 1
        WHERE id = ?`
     )
     .bind(DEMO_DEALER_ID)
     .run();
+}
+
+/**
+ * Verifica se a peça recém-publicada satisfaz algum alerta ativo
+ * (por referência principal ou por alguma das suas substituições) e
+ * envia email a quem criou o alerta. Chamada depois de a peça e as
+ * suas referências alternativas já estarem gravadas na base de
+ * dados.
+ *
+ * Nunca notifica duas vezes para o mesmo par alerta+peça (UNIQUE em
+ * alert_notifications_sent protege isto ao nível da base de dados,
+ * mesmo que a lógica aqui falhe de alguma forma) -- mas notifica de
+ * novo se aparecer uma peça DIFERENTE que satisfaça o mesmo alerta
+ * mais tarde (decisão consciente: a primeira pode ter sido vendida
+ * antes de o concessionário reagir).
+ *
+ * Respeita a preferência pref_alert_notifications de cada
+ * concessionário -- quem desligou não recebe email, mas continua a
+ * ver o alerta satisfeito no dashboard normalmente.
+ *
+ * Falhas de envio nunca impedem a publicação da peça em si -- esta
+ * função é chamada depois de a peça já estar gravada, e qualquer
+ * erro aqui só é registado nos logs do Worker.
+ */
+async function notifyMatchingAlerts(env: Env, listingId: number, dealerCompanyName: string): Promise<void> {
+  try {
+    // Todas as referências desta peça que contam para efeitos de
+    // alerta: a principal + as alternativas guardadas.
+    const listing = await env.DB
+      .prepare("SELECT reference_normalized FROM parts_listings WHERE id = ?")
+      .bind(listingId)
+      .first<{ reference_normalized: string }>();
+    if (!listing) return;
+
+    const altRows = await env.DB
+      .prepare("SELECT reference_normalized FROM listing_alt_references WHERE listing_id = ?")
+      .bind(listingId)
+      .all<{ reference_normalized: string }>();
+
+    const allRefs = [listing.reference_normalized, ...(altRows.results || []).map((r) => r.reference_normalized)];
+    if (allRefs.length === 0) return;
+
+    const placeholders = allRefs.map(() => "?").join(",");
+    const matchingAlerts = await env.DB
+      .prepare(
+        `SELECT ra.id, ra.reference_normalized, d.email, d.pref_alert_notifications
+         FROM reference_alerts ra
+         JOIN dealers d ON d.id = ra.dealer_id
+         WHERE ra.reference_normalized IN (${placeholders}) AND d.is_demo = 0`
+      )
+      .bind(...allRefs)
+      .all<{ id: number; reference_normalized: string; email: string; pref_alert_notifications: number }>();
+
+    for (const alert of matchingAlerts.results || []) {
+      if (!alert.email || alert.pref_alert_notifications !== 1) continue;
+
+      // INSERT com UNIQUE(alert_id, listing_id) -- se já tivesse sido
+      // notificado para este par exato, falha aqui e saltamos, sem
+      // tentar enviar o email outra vez.
+      try {
+        await env.DB
+          .prepare("INSERT INTO alert_notifications_sent (alert_id, listing_id) VALUES (?, ?)")
+          .bind(alert.id, listingId)
+          .run();
+      } catch {
+        continue; // já notificado para este par alerta+peça
+      }
+
+      if (!gmailConfigured(env)) continue;
+
+      try {
+        await sendEmail(
+          env,
+          alert.email,
+          `Referência ${alert.reference_normalized} já disponível — Stock Rede Renault`,
+          [
+            "Olá,",
+            "",
+            `A referência que procuravas (${alert.reference_normalized}) já está disponível, publicada por ${dealerCompanyName}.`,
+            "",
+            `Vê os detalhes e o contacto: https://rubsil.github.io/pecas-renault/index.html?ref=${encodeURIComponent(alert.reference_normalized)}`,
+            "",
+            "Se já não precisares deste alerta, podes cancelá-lo na tua conta (aba Alertas).",
+            "",
+            "— Stock Rede Renault",
+          ].join("\n")
+        );
+      } catch (err) {
+        console.error(`Falha ao enviar email de alerta satisfeito (alerta ${alert.id}):`, err);
+      }
+    }
+  } catch (err) {
+    console.error("Falha ao verificar alertas satisfeitos:", err);
+  }
 }
 
 async function logAdminActivity(
@@ -557,7 +652,7 @@ export default {
       const dealer = await env.DB
         .prepare(
           `SELECT id, company_name, contact_name, phone, email, address, postal_code, city, verified, is_demo,
-                  pref_photo_thumbnails, pref_compact_list, pref_sort_order, pref_default_view
+                  pref_photo_thumbnails, pref_compact_list, pref_sort_order, pref_default_view, pref_alert_notifications
            FROM dealers WHERE id = ?`
         )
         .bind(dealerIdOrResponse)
@@ -582,6 +677,10 @@ export default {
       if (typeof body?.compactList === "boolean") {
         fields.push("pref_compact_list = ?");
         values.push(body.compactList ? 1 : 0);
+      }
+      if (typeof body?.alertNotifications === "boolean") {
+        fields.push("pref_alert_notifications = ?");
+        values.push(body.alertNotifications ? 1 : 0);
       }
       if (body?.sortOrder === "recent" || body?.sortOrder === "distance") {
         fields.push("pref_sort_order = ?");
@@ -633,6 +732,19 @@ export default {
 
       const listingId = result.meta.last_row_id as number;
       await saveAltReferences(env.DB, listingId, body.altReferences, referenceNormalized);
+
+      // Verifica alertas depois das referências alternativas estarem
+      // gravadas -- uma substituição também conta para satisfazer um
+      // alerta, não só a referência principal. Não bloqueia a resposta
+      // ao utilizador (a peça já está publicada de qualquer forma);
+      // falhas aqui ficam só nos logs do Worker.
+      const dealer = await env.DB
+        .prepare("SELECT company_name FROM dealers WHERE id = ?")
+        .bind(dealerId)
+        .first<{ company_name: string }>();
+      if (dealer) {
+        await notifyMatchingAlerts(env, listingId, dealer.company_name);
+      }
 
       return json({ listingId, message: "Peça publicada." });
     }

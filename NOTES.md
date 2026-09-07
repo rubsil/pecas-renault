@@ -121,6 +121,7 @@ D1 → `peca-troca-db` → Console). Histórico:
 - `0009_demo_account.sql` — coluna `is_demo` + conta de demonstração fixa (id 999999)
 - `0010_dealer_preferences.sql` — colunas `pref_photo_thumbnails`, `pref_compact_list`
 - `0011_more_dealer_preferences.sql` — colunas `pref_sort_order`, `pref_default_view`
+- `0012_alert_email_notifications.sql` — coluna `pref_alert_notifications` + tabela `alert_notifications_sent`
 
 ## Correções manuais na base de dados
 
@@ -446,6 +447,36 @@ inicial não tinha nenhum estado persistido localmente antes desta
 funcionalidade). Editáveis só na aba Preferências do dashboard,
 via dois `<select>` (não checkboxes, por terem mais de duas opções
 nomeadas).
+
+## Notificação de alertas por email (migração 0012)
+
+Quando alguém publica uma peça, `notifyMatchingAlerts()` (chamada
+depois de a peça e as suas referências alternativas já estarem
+gravadas) verifica se a referência principal ou alguma das
+substituições correspondem a um alerta ativo de outro concessionário,
+e envia email via Gmail API (mesmo mecanismo já usado para os
+códigos de login).
+
+**Notifica de novo se aparecer peça diferente.** Decisão consciente:
+se a primeira peça correspondente a um alerta for vendida antes de o
+concessionário reagir, ele quer saber da segunda também. A proteção
+contra duplicados é ao nível do **par** alerta+peça, não do alerta
+sozinho -- tabela `alert_notifications_sent` com `UNIQUE(alert_id,
+listing_id)`, que bloqueia ao nível da própria base de dados mesmo
+que a lógica da aplicação falhe de alguma forma. Testado
+isoladamente com SQLite: primeira inserção para um par passa,
+segunda para o mesmo par falha (IntegrityError), inserção para o
+mesmo alerta mas peça diferente volta a passar.
+
+**Preferência `pref_alert_notifications`, ligada por defeito.**
+Editável na aba Preferências do dashboard. Quem desliga continua a
+ver os alertas satisfeitos no próprio dashboard (badge, link "Ver
+peça"), só deixa de receber o email.
+
+Falhas de envio (Gmail não configurado, erro de rede, etc.) nunca
+bloqueiam a publicação da peça em si -- a função é chamada depois de
+a peça já estar gravada na base de dados, e qualquer erro fica só
+nos logs do Worker.
 
 ## Nome da empresa no registo — nota prática
 

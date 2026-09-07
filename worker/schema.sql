@@ -49,7 +49,10 @@ CREATE TABLE IF NOT EXISTS dealers (
   last_login_at TEXT,
   is_demo INTEGER DEFAULT 0,                -- 1 = conta de demonstração, invisível ao público, reposta periodicamente
   pref_photo_thumbnails INTEGER DEFAULT 1,  -- preferências de visualização na pesquisa, partilhadas entre dispositivos
-  pref_compact_list INTEGER DEFAULT 0
+  pref_compact_list INTEGER DEFAULT 0,
+  pref_sort_order TEXT DEFAULT 'recent',    -- 'recent' | 'distance'
+  pref_default_view TEXT DEFAULT 'list',    -- 'list' | 'map'
+  pref_alert_notifications INTEGER DEFAULT 1 -- receber email quando um alerta próprio ficar satisfeito
 );
 
 CREATE INDEX IF NOT EXISTS idx_dealers_phone ON dealers(phone_normalized);
@@ -86,6 +89,19 @@ CREATE TABLE IF NOT EXISTS reference_alerts (
 
 CREATE INDEX IF NOT EXISTS idx_alerts_reference ON reference_alerts(reference_normalized);
 CREATE INDEX IF NOT EXISTS idx_alerts_dealer ON reference_alerts(dealer_id);
+
+-- Regista qual peça já gerou email de notificação para qual alerta --
+-- evita duplicados enquanto a mesma peça continua ativa, mas permite
+-- notificar de novo se aparecer uma peça diferente (ver 0012).
+CREATE TABLE IF NOT EXISTS alert_notifications_sent (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  alert_id INTEGER NOT NULL REFERENCES reference_alerts(id),
+  listing_id INTEGER NOT NULL REFERENCES parts_listings(id),
+  sent_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(alert_id, listing_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_notif_alert ON alert_notifications_sent(alert_id);
 
 -- Configurações editáveis pelo admin (ex: password de registo).
 -- Ver worker/migrations/0002_settings_table.sql para o contexto.

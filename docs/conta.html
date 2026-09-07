@@ -513,6 +513,14 @@
         </select>
       </div>
 
+      <label class="pref-toggle-row">
+        <input type="checkbox" id="pref-alert-notifications" />
+        <span class="pref-toggle-text">
+          <strong>Avisar por email quando um alerta ficar disponível</strong>
+          <span class="pref-toggle-desc">Assim que alguém publicar uma peça que corresponda a um dos teus alertas, recebes um email com o link direto. Podes sempre ver isto na aba Alertas, mesmo sem email.</span>
+        </span>
+      </label>
+
       <div class="message" id="preferences-message"></div>
     </div>
   </div>
@@ -1075,6 +1083,9 @@ async function loadDashboard() {
     if (meData.dealer.pref_default_view) {
       document.getElementById("pref-default-view").value = meData.dealer.pref_default_view;
     }
+    if (typeof meData.dealer.pref_alert_notifications === "number") {
+      document.getElementById("pref-alert-notifications").checked = meData.dealer.pref_alert_notifications === 1;
+    }
 
     const verifyEl = document.getElementById("verify-status");
     if (meData.dealer.verified) {
@@ -1243,6 +1254,10 @@ document.getElementById("pref-sort-order").addEventListener("change", (e) => {
 
 document.getElementById("pref-default-view").addEventListener("change", (e) => {
   updatePreference({ defaultView: e.target.value });
+});
+
+document.getElementById("pref-alert-notifications").addEventListener("change", (e) => {
+  updatePreference({ alertNotifications: e.target.checked });
 });
 
 
