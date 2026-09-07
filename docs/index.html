@@ -138,7 +138,7 @@
   }
   .hero-title-accent { color: var(--hero-accent); }
   .hero-sub { font-size: 0.9rem; color: var(--ink-soft); max-width: 46ch; margin: 0 0 1.1rem; }
-  .hero-meta { display: flex; gap: 1.5rem; margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .hero-meta { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
   .hero-meta-value { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; line-height: 1; color: var(--ink); }
   .hero-meta > div:first-child .hero-meta-value { color: var(--hero-accent); }
   .hero-meta-label { font-size: 0.68rem; color: var(--ink-faint); margin-top: 0.2rem; }
@@ -568,14 +568,14 @@
     <div class="hero-eyebrow">Rede Renault &amp; Dacia · Portugal</div>
     <h1 class="hero-title">Peças paradas num concessionário.<br>Precisas <span class="hero-title-accent">noutro.</span></h1>
     <p class="hero-sub">Vê que concessionários têm essa peça parada em stock, antes de encomendar peça nova.</p>
+    <div class="hero-meta" id="hero-meta">
+      <div><div class="hero-meta-value" id="hero-meta-dealers">—</div><div class="hero-meta-label">concessionários registados</div></div>
+      <div><div class="hero-meta-value" id="hero-meta-listings">—</div><div class="hero-meta-label">peças publicadas</div></div>
+      <div><div class="hero-meta-value">100%</div><div class="hero-meta-label">gratuito, sem intermediários</div></div>
+    </div>
     <div class="search-row">
       <input type="text" id="ref-input" placeholder="ex: 8200123456" autocomplete="off" />
       <button id="search-btn">Procurar</button>
-    </div>
-    <div class="hero-meta" id="hero-meta">
-      <div><div class="hero-meta-value" id="hero-meta-dealers">—</div><div class="hero-meta-label">concessionários na rede</div></div>
-      <div><div class="hero-meta-value">100%</div><div class="hero-meta-label">gratuito, sem intermediários</div></div>
-      <div><div class="hero-meta-value">0€</div><div class="hero-meta-label">custo por transação</div></div>
     </div>
   </div>
 </div>
@@ -622,15 +622,19 @@
 const API_BASE = "https://pecas-renault.ruben-silva-92.workers.dev";
 const sessionToken = localStorage.getItem("pt_session");
 
-// Número real de concessionários na lista oficial, para o hero --
-// evita mostrar um valor fixo desatualizado à medida que a lista
-// crescer. Falha silenciosa: se o pedido falhar, o "—" já presente
-// no HTML fica visível em vez de um erro.
+// Números reais para o hero -- concessionários já registados na
+// plataforma (não o universo da lista oficial da Renault, que seria
+// enganador ao sugerir adesão que ainda não existe) e peças
+// atualmente publicadas. Falha silenciosa: se o pedido falhar, o "—"
+// já presente no HTML fica visível em vez de um erro.
 fetch(`${API_BASE}/api/stats/public`)
   .then(res => res.ok ? res.json() : null)
   .then(data => {
-    if (data?.officialDealersCount) {
-      document.getElementById("hero-meta-dealers").textContent = data.officialDealersCount;
+    if (data && typeof data.registeredDealersCount === "number") {
+      document.getElementById("hero-meta-dealers").textContent = data.registeredDealersCount;
+    }
+    if (data && typeof data.activeListingsCount === "number") {
+      document.getElementById("hero-meta-listings").textContent = data.activeListingsCount;
     }
   })
   .catch(() => {});

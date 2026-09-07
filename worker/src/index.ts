@@ -282,13 +282,17 @@ export default {
       return json({ passwordRequired });
     }
 
-    // ---------- contagem pública de concessionários (só para o hero, sem dados sensíveis) ----------
+    // ---------- contagens públicas (só para o hero, sem dados sensíveis) ----------
     if (path === "/api/stats/public" && request.method === "GET") {
-      const result = await env.DB
-        .prepare("SELECT COUNT(*) AS total FROM official_dealers")
-        .first<{ total: number }>();
+      const [dealersResult, listingsResult] = await Promise.all([
+        env.DB.prepare("SELECT COUNT(*) AS total FROM dealers WHERE is_demo = 0").first<{ total: number }>(),
+        env.DB.prepare("SELECT COUNT(*) AS total FROM parts_listings WHERE status = 'active'").first<{ total: number }>(),
+      ]);
 
-      return json({ officialDealersCount: result?.total || 0 });
+      return json({
+        registeredDealersCount: dealersResult?.total || 0,
+        activeListingsCount: listingsResult?.total || 0,
+      });
     }
 
     if (path === "/api/dealers/register" && request.method === "POST") {
