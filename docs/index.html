@@ -284,6 +284,15 @@
   .result-photos-indicator:hover { color: var(--accent); }
 
   /* ---------- lista compacta ---------- */
+  /* A tabela compacta é mais densa do que o resto da página (cards,
+     hero) e beneficia de mais largura. Em vez de tentar "escapar" do
+     <main> com truques de vw (frágeis e difíceis de confirmar sem
+     testar visualmente num browser real), a classe .compact-active
+     no <main> alarga o próprio container só enquanto essa vista
+     estiver ativa -- mais simples e previsível. */
+  main.compact-active {
+    max-width: 1200px;
+  }
   .compact-table-wrap {
     overflow-x: auto;
     border: 1px solid var(--line);
@@ -969,8 +978,17 @@ document.getElementById("toggle-photo-thumbnails").addEventListener("change", (e
 document.getElementById("toggle-compact-list").addEventListener("change", (e) => {
   showCompactList = e.target.checked;
   localStorage.setItem("pref_compact_list", String(showCompactList));
+  applyCompactListWidth();
   renderResults(lastRenderedResults, lastRenderedEmptyMessage);
 });
+
+/** Alarga o <main> quando a lista compacta está ativa -- chamado no
+ *  toggle e também uma vez no arranque, para o caso de a preferência
+ *  já vir "true" do localStorage antes de qualquer clique. */
+function applyCompactListWidth() {
+  document.querySelector("main").classList.toggle("compact-active", showCompactList);
+}
+applyCompactListWidth();
 
 // ---------- mapa ----------
 let leafletMap = null;
