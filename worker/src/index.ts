@@ -134,6 +134,13 @@ async function resetDemoAccount(db: D1Database): Promise<void> {
     .bind(DEMO_DEALER_ID)
     .run();
   await db.prepare("DELETE FROM parts_listings WHERE dealer_id = ?").bind(DEMO_DEALER_ID).run();
+  await db
+    .prepare(
+      `DELETE FROM alert_notifications_sent WHERE alert_id IN
+       (SELECT id FROM reference_alerts WHERE dealer_id = ?)`
+    )
+    .bind(DEMO_DEALER_ID)
+    .run();
   await db.prepare("DELETE FROM reference_alerts WHERE dealer_id = ?").bind(DEMO_DEALER_ID).run();
 
   // Restaura os dados fixos -- caso a pessoa tenha editado o nome,
@@ -905,6 +912,10 @@ export default {
         return json({ error: "Não podes eliminar um anúncio que não é teu." }, { status: 403 });
       }
 
+      // Apaga primeiro fotos e referências alternativas (foreign
+      // keys para parts_listings), só depois a peça em si.
+      await env.DB.prepare("DELETE FROM listing_photos WHERE listing_id = ?").bind(listingId).run();
+      await env.DB.prepare("DELETE FROM listing_alt_references WHERE listing_id = ?").bind(listingId).run();
       await env.DB.prepare("DELETE FROM parts_listings WHERE id = ?").bind(listingId).run();
       return json({ message: "Anúncio eliminado." });
     }
@@ -1120,6 +1131,16 @@ export default {
       // Confirma que o alerta pertence a quem está autenticado, antes
       // de eliminar -- sem isto, qualquer concessionário autenticado
       // conseguiria apagar alertas de outros só de adivinhar o id.
+      // Apaga primeiro o histórico de notificações (foreign key),
+      // só depois o alerta em si.
+      await env.DB
+        .prepare(
+          `DELETE FROM alert_notifications_sent WHERE alert_id IN
+           (SELECT id FROM reference_alerts WHERE id = ? AND dealer_id = ?)`
+        )
+        .bind(alertId, dealerIdOrResponse)
+        .run();
+
       const result = await env.DB
         .prepare("DELETE FROM reference_alerts WHERE id = ? AND dealer_id = ?")
         .bind(alertId, dealerIdOrResponse)
@@ -1391,6 +1412,11 @@ export default {
     const alertMatch = path.match(/^\/api\/admin\/alerts\/(\d+)$/);
     if (alertMatch && request.method === "DELETE") {
       const alertId = Number(alertMatch[1]);
+      // Apaga primeiro o histórico de notificações ligado a este
+      // alerta -- alert_notifications_sent referencia reference_alerts
+      // por chave estrangeira, por isso apagar o alerta sem isto
+      // falhava sempre que já tinha sido notificado pelo menos uma vez.
+      await env.DB.prepare("DELETE FROM alert_notifications_sent WHERE alert_id = ?").bind(alertId).run();
       await env.DB.prepare("DELETE FROM reference_alerts WHERE id = ?").bind(alertId).run();
       return json({ message: "Alerta eliminado." });
     }
@@ -1629,7 +1655,33 @@ export default {
 
       const dealer = await env.DB.prepare("SELECT company_name FROM dealers WHERE id = ?").bind(dealerId).first<{ company_name: string }>();
 
+      // Apaga em cascata, das tabelas "folha" para as "raiz", por
+      // causa das foreign keys: fotos e referências alternativas
+      // (dependem de parts_listings), depois as peças, depois o
+      // histórico de notificações e os alertas (dependem de dealers),
+      // só por fim a própria conta.
+      await env.DB
+        .prepare(
+          `DELETE FROM listing_photos WHERE listing_id IN
+           (SELECT id FROM parts_listings WHERE dealer_id = ?)`
+        )
+        .bind(dealerId)
+        .run();
+      await env.DB
+        .prepare(
+          `DELETE FROM listing_alt_references WHERE listing_id IN
+           (SELECT id FROM parts_listings WHERE dealer_id = ?)`
+        )
+        .bind(dealerId)
+        .run();
       await env.DB.prepare("DELETE FROM parts_listings WHERE dealer_id = ?").bind(dealerId).run();
+      await env.DB
+        .prepare(
+          `DELETE FROM alert_notifications_sent WHERE alert_id IN
+           (SELECT id FROM reference_alerts WHERE dealer_id = ?)`
+        )
+        .bind(dealerId)
+        .run();
       await env.DB.prepare("DELETE FROM reference_alerts WHERE dealer_id = ?").bind(dealerId).run();
       await env.DB.prepare("DELETE FROM dealers WHERE id = ?").bind(dealerId).run();
 
@@ -1768,6 +1820,9 @@ export default {
       const listingId = Number(adminListingMatch[1]);
       const listing = await env.DB.prepare("SELECT reference FROM parts_listings WHERE id = ?").bind(listingId).first<{ reference: string }>();
 
+      // Fotos e referências alternativas primeiro (foreign keys).
+      await env.DB.prepare("DELETE FROM listing_photos WHERE listing_id = ?").bind(listingId).run();
+      await env.DB.prepare("DELETE FROM listing_alt_references WHERE listing_id = ?").bind(listingId).run();
       await env.DB.prepare("DELETE FROM parts_listings WHERE id = ?").bind(listingId).run();
 
       await logAdminActivity(env.DB, "listing_deleted", "listing", listingId, listing?.reference || null);
