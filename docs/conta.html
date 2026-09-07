@@ -95,6 +95,12 @@
 
   .hint { font-size: 0.8rem; color: var(--ink-faint); margin-top: 0.4rem; }
 
+  .reg-manual-fields-intro {
+    font-size: 0.85rem; font-weight: 600; color: var(--accent-text);
+    background: var(--accent-soft); padding: 0.75rem 1rem; border-radius: var(--radius);
+    margin: 1.5rem 0 0.5rem;
+  }
+
   .message {
     margin-top: 1.25rem; padding: 0.8rem 1rem; border-radius: var(--radius);
     font-size: 0.88rem; display: none;
@@ -388,15 +394,8 @@
         <div class="autocomplete-list" id="reg-company-suggestions"></div>
       </div>
 
-      <label for="reg-contact">Pessoa de contacto</label>
-      <input type="text" id="reg-contact" placeholder="Nome do responsável de peças" />
-
       <label for="reg-phone">Telefone</label>
       <input type="tel" id="reg-phone" placeholder="213 123 456" />
-
-      <label for="reg-email">Email</label>
-      <input type="email" id="reg-email" placeholder="pecas@exemplo.pt" required />
-      <div class="hint" style="margin-top: 0.3rem;">Usado para entrar na conta e como contacto por escrito para outros concessionários.</div>
 
       <label for="reg-city">Localidade</label>
       <input type="text" id="reg-city" placeholder="ex: Sintra" />
@@ -404,6 +403,17 @@
       <label for="reg-postal">Código postal</label>
       <input type="text" id="reg-postal" placeholder="ex: 2710-034" />
       <div class="hint">Ajuda-nos a confirmar automaticamente o teu concessionário, sobretudo se fizeres parte de uma cadeia com vários pontos (Carby, Santogal, etc).</div>
+
+      <div class="reg-manual-fields-intro" id="reg-manual-fields-intro" style="display: none;">
+        Confirma que o concessionário acima está certo. Falta só isto, preenchido por ti:
+      </div>
+
+      <label for="reg-contact">Pessoa de contacto</label>
+      <input type="text" id="reg-contact" placeholder="Nome do responsável de peças" />
+
+      <label for="reg-email">Email</label>
+      <input type="email" id="reg-email" placeholder="pecas@exemplo.pt" required />
+      <div class="hint" style="margin-top: 0.3rem;">Usado para entrar na conta e como contacto por escrito para outros concessionários.</div>
 
       <div id="reg-access-code-block">
         <label for="reg-access-code">Código de acesso</label>
@@ -736,12 +746,24 @@ function applySuggestion(item) {
   companyInput.value = item.dataset.name;
   document.getElementById("reg-city").value = item.dataset.city;
   document.getElementById("reg-postal").value = item.dataset.postal;
-  // Só preenche o telefone se o campo ainda estiver vazio — não quero
-  // sobrescrever um número que a pessoa já tenha escrito.
-  const phoneField = document.getElementById("reg-phone");
-  if (!phoneField.value.trim() && item.dataset.phone) phoneField.value = item.dataset.phone;
+  // Sempre substitui o telefone pelo da sugestão escolhida -- mesmo
+  // padrão de cidade/código postal. Antes só preenchia se o campo
+  // estivesse vazio, o que parecia proteger uma edição manual, mas na
+  // prática deixava o telefone de uma escolha ANTERIOR colado à
+  // empresa nova, sempre que a pessoa trocava de sugestão (ex:
+  // escolheu por engano o concessionário errado primeiro, corrigiu
+  // depois -- o telefone do primeiro ficava esquecido lá).
+  if (item.dataset.phone) {
+    document.getElementById("reg-phone").value = item.dataset.phone;
+  }
   suggestionsBox.classList.remove("show");
   suggestionsBox.innerHTML = "";
+
+  // Só depois de escolher um concessionário da lista é que faz
+  // sentido pedir os dados que sobram por preencher manualmente --
+  // antes disso, mostrar isso já seria confuso (a pessoa ainda nem
+  // escolheu o concessionário certo).
+  document.getElementById("reg-manual-fields-intro").style.display = "block";
 }
 
 function escapeAttr(str) {
