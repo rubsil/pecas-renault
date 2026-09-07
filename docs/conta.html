@@ -445,6 +445,7 @@ let pendingDealerId = null;
 // worker/src/normalize.ts), por isso os espaços aqui nunca chegam a
 // interferir com a validação.
 function attachPhoneMask(inputEl) {
+  if (!inputEl) return;
   inputEl.addEventListener("input", (e) => {
     const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 9);
     const groups = digitsOnly.match(/.{1,3}/g) || [];

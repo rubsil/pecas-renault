@@ -283,6 +283,57 @@
   }
   .result-photos-indicator:hover { color: var(--accent); }
 
+  /* ---------- lista compacta ---------- */
+  .compact-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+  }
+  .compact-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+  .compact-table th {
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 2px solid var(--line);
+    background: var(--paper);
+  }
+  .compact-table td {
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .compact-table tr:last-child td { border-bottom: none; }
+  .compact-table tr:hover td { background: var(--accent-soft); }
+  .compact-ref { font-family: var(--mono); font-weight: 700; }
+  .compact-desc {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink-soft);
+  }
+  .compact-qty { font-family: var(--mono); text-align: center; }
+  .compact-dealer .badge-verified, .compact-dealer .badge-pending {
+    font-size: 0.68rem;
+    margin-left: 0.3rem;
+  }
+  .compact-distance { color: var(--ink-faint); font-family: var(--mono); font-size: 0.8rem; }
+  .compact-contact a { color: var(--accent-text); text-decoration: none; font-size: 0.82rem; }
+  .compact-contact a:hover { text-decoration: underline; }
+  .compact-photos .result-photos-indicator, .compact-photos .result-photos-more { white-space: nowrap; }
+  .compact-photos .result-photos { flex-wrap: nowrap; }
+  .compact-photos img { width: 2.2rem; height: 2.2rem; }
+
   .result-qty {
     font-family: var(--mono);
     font-size: 0.85rem;
@@ -407,9 +458,9 @@
     gap: 0.4rem;
     font-size: 0.82rem;
     color: var(--ink-soft);
-    margin-left: auto;
     cursor: pointer;
   }
+  .photo-toggle-label:first-of-type { margin-left: auto; }
   .photo-toggle-label input { cursor: pointer; }
 
   .map-container {
@@ -537,6 +588,10 @@
     <label class="photo-toggle-label">
       <input type="checkbox" id="toggle-photo-thumbnails" checked />
       Mostrar miniaturas de fotos
+    </label>
+    <label class="photo-toggle-label">
+      <input type="checkbox" id="toggle-compact-list" />
+      Lista compacta
     </label>
   </div>
 
@@ -719,6 +774,8 @@ resultsArea?.addEventListener("click", (e) => {
   if (photos) openPhotosModal(photos);
 });
 
+let showCompactList = false;
+
 function renderResults(results, emptyMessage) {
   lastRenderedResults = results;
   lastRenderedEmptyMessage = emptyMessage;
@@ -733,6 +790,45 @@ function renderResults(results, emptyMessage) {
     return;
   }
 
+  if (showCompactList) {
+    renderCompactList(results);
+  } else {
+    renderCardList(results);
+  }
+}
+
+/** Constrói a marcação de fotos (miniaturas ou indicador de texto),
+ *  partilhada entre a vista de cards e a vista compacta -- evita
+ *  duplicar a lógica de slice/popup em dois sítios. */
+function buildPhotosMarkup(r, maxThumbs) {
+  const photos = r.photos_data
+    ? r.photos_data.split("|||").map(item => {
+        const [url, thumb] = item.split(":::");
+        return { url, thumb: thumb || url };
+      })
+    : [];
+
+  if (photos.length === 0) return { html: "", photos: [] };
+
+  let html;
+  if (showPhotoThumbnails) {
+    const visible = photos.slice(0, maxThumbs);
+    const extra = photos.length - visible.length;
+    html = `
+      <div class="result-photos">
+        ${visible.map(p => `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.thumb)}" loading="lazy" /></a>`).join("")}
+        ${extra > 0 ? `<button type="button" class="result-photos-more" data-photos-index="${allResultPhotos.length}">+${extra}</button>` : ""}
+      </div>
+    `;
+  } else {
+    html = `<button type="button" class="result-photos-indicator" data-photos-index="${allResultPhotos.length}">📷 ${photos.length} foto${photos.length === 1 ? "" : "s"} disponíve${photos.length === 1 ? "l" : "is"}</button>`;
+  }
+
+  allResultPhotos.push(photos);
+  return { html, photos };
+}
+
+function renderCardList(results) {
   resultsArea.innerHTML = '<div class="results"></div>';
   const list = resultsArea.querySelector(".results");
 
@@ -748,32 +844,7 @@ function renderResults(results, emptyMessage) {
       ? `<span class="badge-distance">a ${r.distance_km} km</span>`
       : "";
 
-    const photos = r.photos_data
-      ? r.photos_data.split("|||").map(item => {
-          const [url, thumb] = item.split(":::");
-          return { url, thumb: thumb || url };
-        })
-      : [];
-
-    let photosHtml = "";
-    if (photos.length > 0) {
-      if (showPhotoThumbnails) {
-        const visible = photos.slice(0, 3);
-        const extra = photos.length - visible.length;
-        photosHtml = `
-          <div class="result-photos">
-            ${visible.map(p => `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(p.thumb)}" loading="lazy" /></a>`).join("")}
-            ${extra > 0 ? `<button type="button" class="result-photos-more" data-photos-index="${allResultPhotos.length}">+${extra}</button>` : ""}
-          </div>
-        `;
-      } else {
-        photosHtml = `<button type="button" class="result-photos-indicator" data-photos-index="${allResultPhotos.length}">📷 ${photos.length} foto${photos.length === 1 ? "" : "s"} disponíve${photos.length === 1 ? "l" : "is"}</button>`;
-      }
-      // Guarda o array completo desta peça, indexado pela posição em
-      // que foi inserido -- o botão/indicador usa esse índice para
-      // saber que fotos abrir no popup, sem ter de reconstruir nada.
-      allResultPhotos.push(photos);
-    }
+    const { html: photosHtml } = buildPhotosMarkup(r, 3);
 
     card.innerHTML = `
       <div class="result-ref">${escapeHtml(r.reference)}</div>
@@ -799,6 +870,62 @@ function renderResults(results, emptyMessage) {
   }
 }
 
+/**
+ * Vista em tabela, uma linha por peça -- referência, descrição,
+ * quantidade, concessionário, distância, contactos, fotos. Pensada
+ * para quem já conhece o site e quer percorrer muitos resultados
+ * rapidamente, à semelhança da tabela de peças do admin.
+ *
+ * Descrições longas cortam com reticências (CSS) e mostram o texto
+ * completo num tooltip nativo (title="...") ao passar o rato -- mais
+ * simples e mais acessível do que um popup extra só para isto.
+ */
+function renderCompactList(results) {
+  const rows = results.map(r => {
+    const phoneDigits = (r.phone || "").replace(/\D+/g, "");
+    const badge = r.verified
+      ? '<span class="badge-verified">Verificado</span>'
+      : '<span class="badge-pending">Por confirmar</span>';
+    const distance = r.distance_km != null ? `${r.distance_km} km` : "—";
+
+    const { html: photosHtml } = buildPhotosMarkup(r, 1);
+
+    return `
+      <tr>
+        <td class="compact-ref">${escapeHtml(r.reference)}</td>
+        <td class="compact-desc" title="${escapeAttr(r.description || "")}">${escapeHtml(r.description || "—")}</td>
+        <td class="compact-qty">${r.quantity} un.</td>
+        <td class="compact-dealer">${escapeHtml(r.company_name)} ${badge}</td>
+        <td class="compact-distance">${distance}</td>
+        <td class="compact-contact">
+          ${r.phone ? `<a href="tel:${phoneDigits}">${escapeHtml(r.phone)}</a>` : "—"}
+          ${sessionToken && r.email ? `<br><a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>` : ""}
+        </td>
+        <td class="compact-photos">${photosHtml || "—"}</td>
+      </tr>
+    `;
+  }).join("");
+
+  resultsArea.innerHTML = `
+    <div class="compact-table-wrap">
+      <table class="compact-table">
+        <thead>
+          <tr>
+            <th>Referência</th>
+            <th>Descrição</th>
+            <th>Qtd.</th>
+            <th>Concessionário</th>
+            <th>Distância</th>
+            <th>Contactos</th>
+            <th>Fotos</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
 async function loadAllListings() {
   resultsArea.innerHTML = '<div class="status-line">A carregar peças publicadas…</div>';
   try {
@@ -821,6 +948,11 @@ document.getElementById("toggle-photo-thumbnails").addEventListener("change", (e
   showPhotoThumbnails = e.target.checked;
   // Reaproveita os resultados já carregados -- não faz sentido pedir
   // tudo outra vez ao Worker só para trocar entre miniatura e texto.
+  renderResults(lastRenderedResults, lastRenderedEmptyMessage);
+});
+
+document.getElementById("toggle-compact-list").addEventListener("change", (e) => {
+  showCompactList = e.target.checked;
   renderResults(lastRenderedResults, lastRenderedEmptyMessage);
 });
 
@@ -935,6 +1067,13 @@ function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str || "";
   return div.innerHTML;
+}
+
+/** Como escapeHtml, mas também escapa aspas duplas -- necessário
+ *  para inserir texto dentro de atributos HTML (ex: title="..."),
+ *  onde uma aspa não escapada fecharia o atributo prematuramente. */
+function escapeAttr(str) {
+  return escapeHtml(str).replace(/"/g, "&quot;");
 }
 
 // Se o campo ficar vazio (ex: user apaga tudo), volta a mostrar tudo.
