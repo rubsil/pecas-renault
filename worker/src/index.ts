@@ -1179,7 +1179,15 @@ export default {
           "SELECT COUNT(*) AS total FROM dealers WHERE verified = 0 AND is_demo = 0"
         ).first<{ total: number }>(),
         env.DB.prepare(
-          "SELECT COUNT(*) AS total FROM reference_alerts WHERE notified_at IS NULL"
+          `SELECT COUNT(*) AS total FROM reference_alerts ra
+           WHERE NOT EXISTS (
+             SELECT 1 FROM parts_listings pl
+             WHERE pl.reference_normalized = ra.reference_normalized AND pl.status = 'active'
+             UNION
+             SELECT 1 FROM parts_listings pl
+             JOIN listing_alt_references lar ON lar.listing_id = pl.id
+             WHERE lar.reference_normalized = ra.reference_normalized AND pl.status = 'active'
+           )`
         ).first<{ total: number }>(),
       ]);
 
