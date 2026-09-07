@@ -51,7 +51,12 @@
   nav a:hover { color: var(--ink); text-decoration: underline; }
   nav a.nav-link-danger { color: var(--danger); }
 
-  main { max-width: 480px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
+  main { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
+
+  /* O ecrã de login/registo mantém-se estreito e focado -- é um
+     formulário, não precisa do espaço extra que o dashboard (listagem
+     de peças, com muitas colunas de informação) já precisa. */
+  #auth-view { max-width: 480px; margin: 0 auto; }
 
   .tabs { display: flex; gap: 0.4rem; margin-bottom: 1.75rem; }
   .tab {

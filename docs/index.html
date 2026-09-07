@@ -761,7 +761,10 @@ if (stickyInput) {
 
 let lastRenderedResults = [];
 let lastRenderedEmptyMessage = "";
-let showPhotoThumbnails = true;
+
+// Preferências de visualização, lembradas entre visitas -- default
+// "true"/"false" quando ainda não há nada guardado (primeira visita).
+let showPhotoThumbnails = localStorage.getItem("pref_photo_thumbnails") !== "false";
 let allResultPhotos = []; // reposto a cada renderResults(), indexado por peça com fotos
 
 // Delegação de eventos: os botões "+X" e "📷 X fotos" são recriados a
@@ -774,7 +777,14 @@ resultsArea?.addEventListener("click", (e) => {
   if (photos) openPhotosModal(photos);
 });
 
-let showCompactList = false;
+let showCompactList = localStorage.getItem("pref_compact_list") === "true";
+
+// Reflete a preferência guardada no estado visual das checkboxes,
+// já que o atributo "checked" no HTML é sempre o mesmo (não sabe
+// nada do localStorage) -- sem isto, a caixa ficava com o valor
+// por defeito visualmente errado, mesmo a variável JS estando certa.
+document.getElementById("toggle-photo-thumbnails").checked = showPhotoThumbnails;
+document.getElementById("toggle-compact-list").checked = showCompactList;
 
 function renderResults(results, emptyMessage) {
   lastRenderedResults = results;
@@ -946,6 +956,7 @@ async function loadAllListings() {
 
 document.getElementById("toggle-photo-thumbnails").addEventListener("change", (e) => {
   showPhotoThumbnails = e.target.checked;
+  localStorage.setItem("pref_photo_thumbnails", String(showPhotoThumbnails));
   // Reaproveita os resultados já carregados -- não faz sentido pedir
   // tudo outra vez ao Worker só para trocar entre miniatura e texto.
   renderResults(lastRenderedResults, lastRenderedEmptyMessage);
@@ -953,6 +964,7 @@ document.getElementById("toggle-photo-thumbnails").addEventListener("change", (e
 
 document.getElementById("toggle-compact-list").addEventListener("change", (e) => {
   showCompactList = e.target.checked;
+  localStorage.setItem("pref_compact_list", String(showCompactList));
   renderResults(lastRenderedResults, lastRenderedEmptyMessage);
 });
 
