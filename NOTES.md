@@ -119,6 +119,7 @@ D1 → `peca-troca-db` → Console). Histórico:
 - `0007_official_dealers_coordinates.sql` — colunas `lat`/`lon`/`geocoded_at` na lista oficial
 - `0008_listing_photos.sql` — tabela `listing_photos` (fotos via ImgBB)
 - `0009_demo_account.sql` — coluna `is_demo` + conta de demonstração fixa (id 999999)
+- `0010_dealer_preferences.sql` — colunas `pref_photo_thumbnails`, `pref_compact_list`
 
 ## Correções manuais na base de dados
 
@@ -376,6 +377,37 @@ Se um dia for preciso mudar as credenciais fixas de demonstração
 (ex: por segurança, ou para algo mais memorável), isso é feito
 diretamente no código (`worker/src/index.ts`, rota `demo-login`), não
 pelo painel de admin.
+
+## Preferências de visualização, sincronizadas entre dispositivos
+
+"Mostrar miniaturas de fotos" e "Lista compacta" (index.html) deixaram
+de viver só no localStorage do browser -- para quem tem sessão, ficam
+gravadas na conta (`dealers.pref_photo_thumbnails`,
+`dealers.pref_compact_list`, migração 0010) e sincronizam nos dois
+sentidos:
+
+- Mudar o toggle na pesquisa (`index.html`) grava no backend
+  (`PATCH /api/dealers/me/preferences`) e no localStorage.
+- Mudar na nova aba "Preferências" do dashboard (`conta.html`) faz o
+  mesmo, ao contrário.
+- Ao entrar em `index.html`/`publicar.html` com sessão, os valores do
+  backend (vindos de `GET /api/dealers/me`, que já devolve os dois
+  campos) têm sempre prioridade sobre o que estiver no localStorage --
+  garante que a mesma pessoa vê a mesma preferência em qualquer
+  dispositivo onde entrar, mesmo que o localStorage local esteja
+  desatualizado ou seja de outro browser.
+
+Quem pesquisa **sem sessão** continua a usar só o localStorage, como
+antes desta funcionalidade -- não há conta onde gravar.
+
+Falhas ao gravar no backend (rede, sessão expirada) são silenciosas
+no toggle da pesquisa (a preferência continua válida localmente); na
+aba Preferências mostram uma mensagem de erro, já que aí é a ação
+principal do ecrã.
+
+A conta de demonstração restaura estas duas colunas para os valores
+por defeito (`pref_photo_thumbnails = 1`, `pref_compact_list = 0`) no
+reset, tal como o resto dos seus dados.
 
 ## Nome da empresa no registo — nota prática
 

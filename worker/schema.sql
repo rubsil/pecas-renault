@@ -47,7 +47,9 @@ CREATE TABLE IF NOT EXISTS dealers (
   login_token_expires_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   last_login_at TEXT,
-  is_demo INTEGER DEFAULT 0                 -- 1 = conta de demonstração, invisível ao público, reposta periodicamente
+  is_demo INTEGER DEFAULT 0,                -- 1 = conta de demonstração, invisível ao público, reposta periodicamente
+  pref_photo_thumbnails INTEGER DEFAULT 1,  -- preferências de visualização na pesquisa, partilhadas entre dispositivos
+  pref_compact_list INTEGER DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_dealers_phone ON dealers(phone_normalized);

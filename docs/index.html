@@ -961,9 +961,25 @@ async function loadAllListings() {
   }
 }
 
+/** Grava uma preferência de visualização no backend, só se houver
+ *  sessão -- sem sessão, o localStorage (já gravado antes de chamar
+ *  esta função) continua a ser a única fonte, como sempre foi.
+ *  Falha silenciosa: se o pedido falhar (rede, sessão expirada), a
+ *  preferência continua válida localmente, só não fica sincronizada
+ *  entre dispositivos até à próxima mudança bem-sucedida. */
+function syncPreferenceToBackend(patch) {
+  if (!sessionToken) return;
+  fetch(`${API_BASE}/api/dealers/me/preferences`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", authorization: `Bearer ${sessionToken}` },
+    body: JSON.stringify(patch),
+  }).catch(() => {});
+}
+
 document.getElementById("toggle-photo-thumbnails").addEventListener("change", (e) => {
   showPhotoThumbnails = e.target.checked;
   localStorage.setItem("pref_photo_thumbnails", String(showPhotoThumbnails));
+  syncPreferenceToBackend({ photoThumbnails: showPhotoThumbnails });
   // Reaproveita os resultados já carregados -- não faz sentido pedir
   // tudo outra vez ao Worker só para trocar entre miniatura e texto.
   renderResults(lastRenderedResults, lastRenderedEmptyMessage);
@@ -972,6 +988,7 @@ document.getElementById("toggle-photo-thumbnails").addEventListener("change", (e
 document.getElementById("toggle-compact-list").addEventListener("change", (e) => {
   showCompactList = e.target.checked;
   localStorage.setItem("pref_compact_list", String(showCompactList));
+  syncPreferenceToBackend({ compactList: showCompactList });
   renderResults(lastRenderedResults, lastRenderedEmptyMessage);
 });
 
@@ -1131,6 +1148,22 @@ if (sessionToken) {
         myDealerId = data.dealer.id;
       }
       if (data?.dealer?.is_demo) showDemoBanner();
+
+      // Com sessão, as preferências guardadas na conta têm prioridade
+      // sobre o que estiver no localStorage -- garante que a mesma
+      // pessoa vê a mesma preferência em qualquer dispositivo onde
+      // entrar. Sem isto, o localStorage local (mais antigo, ou de
+      // outro dispositivo) continuaria a mandar mesmo depois do login.
+      if (data?.dealer && typeof data.dealer.pref_photo_thumbnails === "number") {
+        showPhotoThumbnails = data.dealer.pref_photo_thumbnails === 1;
+        localStorage.setItem("pref_photo_thumbnails", String(showPhotoThumbnails));
+        document.getElementById("toggle-photo-thumbnails").checked = showPhotoThumbnails;
+      }
+      if (data?.dealer && typeof data.dealer.pref_compact_list === "number") {
+        showCompactList = data.dealer.pref_compact_list === 1;
+        localStorage.setItem("pref_compact_list", String(showCompactList));
+        document.getElementById("toggle-compact-list").checked = showCompactList;
+      }
     })
     .catch(() => {})
     .finally(() => loadInitialResults()); // só carrega depois de saber (ou não) o dealerId

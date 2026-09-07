@@ -7,6 +7,7 @@
 //   POST /api/auth/request-code       — pede código de login (magic link)
 //   POST /api/auth/redeem-code        — troca código por sessão
 //   GET  /api/dealers/me              — dados do concessionário autenticado
+//   PATCH /api/dealers/me/preferences — atualiza as próprias preferências de visualização
 //
 //   POST /api/listings                — publica peça (autenticado)
 //   PATCH /api/listings/:id           — atualiza estado (sold/removed) (autenticado, dono)
@@ -150,7 +151,9 @@ async function resetDemoAccount(db: D1Database): Promise<void> {
          city = 'Cidade de Demonstração',
          lat = NULL,
          lon = NULL,
-         verified = 1
+         verified = 1,
+         pref_photo_thumbnails = 1,
+         pref_compact_list = 0
        WHERE id = ?`
     )
     .bind(DEMO_DEALER_ID)
@@ -551,13 +554,40 @@ export default {
 
       const dealer = await env.DB
         .prepare(
-          `SELECT id, company_name, contact_name, phone, email, address, postal_code, city, verified, is_demo
+          `SELECT id, company_name, contact_name, phone, email, address, postal_code, city, verified, is_demo,
+                  pref_photo_thumbnails, pref_compact_list
            FROM dealers WHERE id = ?`
         )
         .bind(dealerIdOrResponse)
         .first();
 
       return json({ dealer });
+    }
+
+    // ---------- atualizar as próprias preferências de visualização ----------
+    if (path === "/api/dealers/me/preferences" && request.method === "PATCH") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+
+      const body = await request.json<any>().catch(() => null);
+      const fields: string[] = [];
+      const values: any[] = [];
+
+      if (typeof body?.photoThumbnails === "boolean") {
+        fields.push("pref_photo_thumbnails = ?");
+        values.push(body.photoThumbnails ? 1 : 0);
+      }
+      if (typeof body?.compactList === "boolean") {
+        fields.push("pref_compact_list = ?");
+        values.push(body.compactList ? 1 : 0);
+      }
+
+      if (fields.length === 0) return json({ error: "Nada para atualizar." }, { status: 400 });
+
+      values.push(dealerIdOrResponse);
+      await env.DB.prepare(`UPDATE dealers SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+
+      return json({ message: "Preferências atualizadas." });
     }
 
     // ---------- publicar peça ----------
