@@ -8,6 +8,7 @@
 //   POST /api/auth/redeem-code        — troca código por sessão
 //   GET  /api/dealers/me              — dados do concessionário autenticado
 //   PATCH /api/dealers/me/preferences — atualiza as próprias preferências de visualização
+//   PATCH /api/dealers/me/phone       — atualiza o próprio telefone de contacto
 //
 //   POST /api/listings                — publica peça (autenticado)
 //   PATCH /api/listings/:id           — atualiza estado (sold/removed) (autenticado, dono)
@@ -575,12 +576,41 @@ export default {
       const phoneNormalized = normalizePhone(body.phone);
       const emailNormalized = String(body.email).trim().toLowerCase();
       const dealer = await env.DB
-        .prepare("SELECT id, email_confirmed FROM dealers WHERE phone_normalized = ? AND lower(email) = ?")
+        .prepare(
+          "SELECT id, email_confirmed, login_code_requests_count, login_code_window_started_at FROM dealers WHERE phone_normalized = ? AND lower(email) = ?"
+        )
         .bind(phoneNormalized, emailNormalized)
-        .first<{ id: number; email_confirmed: number }>();
+        .first<{ id: number; email_confirmed: number; login_code_requests_count: number; login_code_window_started_at: string | null }>();
 
       if (!dealer) {
         return json({ error: "Não encontrámos nenhuma conta com este telefone e email." }, { status: 404 });
+      }
+
+      // Rate limit: no máximo 5 pedidos de código por hora, por conta.
+      // Generoso o suficiente para uso normal (às vezes o código não
+      // chega, pede-se outro), mas evita gastar a quota diária do
+      // Gmail sem necessidade real. A janela reinicia sozinha ao fim
+      // de 1 hora desde o primeiro pedido dela.
+      const LOGIN_RATE_LIMIT = 5;
+      const windowStart = dealer.login_code_window_started_at ? new Date(dealer.login_code_window_started_at) : null;
+      const windowExpired = !windowStart || Date.now() - windowStart.getTime() > 60 * 60 * 1000;
+
+      if (windowExpired) {
+        await env.DB
+          .prepare("UPDATE dealers SET login_code_requests_count = 1, login_code_window_started_at = datetime('now') WHERE id = ?")
+          .bind(dealer.id)
+          .run();
+      } else {
+        if (dealer.login_code_requests_count >= LOGIN_RATE_LIMIT) {
+          return json(
+            { error: "Demasiados pedidos de código para esta conta. Tenta novamente dentro de uma hora." },
+            { status: 429 }
+          );
+        }
+        await env.DB
+          .prepare("UPDATE dealers SET login_code_requests_count = login_code_requests_count + 1 WHERE id = ?")
+          .bind(dealer.id)
+          .run();
       }
 
       const code = await createLoginCode(env.DB, dealer.id);
@@ -704,6 +734,35 @@ export default {
       await env.DB.prepare(`UPDATE dealers SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
 
       return json({ message: "Preferências atualizadas." });
+    }
+
+    // ---------- atualizar o próprio telefone ----------
+    // Separado das preferências de propósito -- telefone é um dado de
+    // contacto real, usado também para entrar na conta, não uma
+    // preferência de visualização. Email não é editável aqui: já é
+    // escolhido livremente no registo (ao contrário do telefone, que
+    // vem pré-preenchido da lista oficial), por isso não há o mesmo
+    // caso de "só depois de verificado é que compensa trocar".
+    if (path === "/api/dealers/me/phone" && request.method === "PATCH") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+
+      const body = await request.json<any>().catch(() => null);
+      if (!body?.phone || typeof body.phone !== "string") {
+        return json({ error: "Telefone é obrigatório." }, { status: 400 });
+      }
+
+      const phoneNormalized = normalizePhone(body.phone);
+      if (phoneNormalized.length !== 9) {
+        return json({ error: "O telefone deve ter 9 dígitos." }, { status: 400 });
+      }
+
+      await env.DB
+        .prepare("UPDATE dealers SET phone = ?, phone_normalized = ? WHERE id = ?")
+        .bind(body.phone, phoneNormalized, dealerIdOrResponse)
+        .run();
+
+      return json({ message: "Telefone atualizado." });
     }
 
     // ---------- publicar peça ----------
@@ -997,14 +1056,20 @@ export default {
     if (path === "/api/listings/search" && request.method === "GET") {
       const ref = url.searchParams.get("ref") || "";
       const refNormalized = normalizeReference(ref);
-      if (refNormalized.length < 2) {
-        return json({ error: "Indica pelo menos 2 caracteres da referência." }, { status: 400 });
+      if (refNormalized.length < 2 && ref.trim().length < 2) {
+        return json({ error: "Indica pelo menos 2 caracteres da referência ou descrição." }, { status: 400 });
       }
 
-      // Procura tanto na referência principal como nas alternativas --
-      // uma peça pode ter várias referências (código antigo, código de
-      // fornecedor diferente, etc). DISTINCT porque um match múltiplo
-      // em alternativas não deve duplicar a linha da peça.
+      // Procura na referência principal, nas alternativas, E na
+      // descrição da peça -- útil para quem sabe o que precisa (ex:
+      // "amortecedor") mas não sabe a referência exata. A descrição
+      // usa o texto tal como escrito (só minúsculas), nunca
+      // normalizeReference() -- essa função remove espaços, o que
+      // partiria uma pesquisa de várias palavras (ex: "kit
+      // embraiagem" viraria "KITEMBRAIAGEM", nunca bateria certo).
+      // DISTINCT porque um match múltiplo em alternativas não deve
+      // duplicar a linha da peça.
+      const searchTextLower = `%${ref.trim().toLowerCase()}%`;
       const rows = await env.DB
         .prepare(
           `SELECT DISTINCT
@@ -1015,11 +1080,12 @@ export default {
            FROM parts_listings pl
            JOIN dealers d ON d.id = pl.dealer_id
            LEFT JOIN listing_alt_references alt ON alt.listing_id = pl.id
-           WHERE (pl.reference_normalized LIKE ? OR alt.reference_normalized LIKE ?) AND pl.status = 'active' AND d.is_demo = 0
+           WHERE (pl.reference_normalized LIKE ? OR alt.reference_normalized LIKE ? OR lower(pl.description) LIKE ?)
+             AND pl.status = 'active' AND d.is_demo = 0
            ORDER BY pl.created_at DESC
            LIMIT 50`
         )
-        .bind(`%${refNormalized}%`, `%${refNormalized}%`)
+        .bind(`%${refNormalized}%`, `%${refNormalized}%`, searchTextLower)
         .all();
 
       return json({ results: rows.results || [] });

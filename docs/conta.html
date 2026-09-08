@@ -161,6 +161,18 @@
     font-size: 0.8rem; color: var(--ink-faint); margin-top: 0.75rem; font-style: italic;
   }
   .dash-contact-card .contact-note a { color: var(--accent-text); font-style: normal; }
+  .dash-contact-card .contact-row-editable { grid-column: 1 / -1; align-items: center; }
+  .contact-edit-wrap { display: flex; gap: 0.5rem; align-items: center; flex: 1; }
+  .contact-edit-input {
+    flex: 1; max-width: 220px; padding: 0.4rem 0.6rem; font-size: 0.88rem;
+    border: 1px solid var(--line); border-radius: var(--radius); font-family: var(--sans);
+  }
+  .contact-edit-input:focus { outline: none; border-color: var(--hero-accent); }
+  .contact-edit-save {
+    padding: 0.4rem 0.9rem; font-size: 0.82rem; font-weight: 700; background: var(--ink);
+    color: var(--paper); border: none; border-radius: var(--radius); cursor: pointer;
+  }
+  .contact-edit-save:hover { background: var(--hero-accent); }
 
   .alert-create-row { display: flex; gap: 0.5rem; }
   .alert-create-row input {
@@ -218,6 +230,16 @@
     background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
     box-shadow: 0 1px 2px rgba(26,29,26,0.05);
   }
+  .listing-row-sold { opacity: 0.65; background: var(--paper); }
+  .listings-sold-header {
+    font-size: 0.85rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase;
+    letter-spacing: 0.03em; margin: 1.75rem 0 0.75rem; padding-top: 1rem; border-top: 1px dashed var(--line);
+  }
+  .sold-checkbox-label {
+    display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--ink-soft);
+    cursor: pointer; white-space: nowrap;
+  }
+  .sold-checkbox { cursor: pointer; }
   .listing-main { display: flex; flex-direction: column; gap: 0.6rem; }
   .listing-top { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; }
   .listing-info { display: flex; flex-direction: column; gap: 0.2rem; }
@@ -1135,16 +1157,49 @@ function renderContactCard(dealer) {
   const card = document.getElementById("dash-contact-card");
   card.innerHTML = `
     <div class="contact-grid">
-      <div class="contact-row"><span class="contact-label">Telefone</span><span class="contact-value">${escapeHtmlLocal(dealer.phone || "—")}</span></div>
+      <div class="contact-row contact-row-editable">
+        <span class="contact-label">Telefone</span>
+        <span class="contact-edit-wrap">
+          <input type="tel" id="edit-phone-input" class="contact-edit-input" value="${escapeHtmlLocal(dealer.phone || "")}" />
+          <button type="button" id="btn-save-phone" class="contact-edit-save">Guardar</button>
+        </span>
+      </div>
       <div class="contact-row"><span class="contact-label">Email</span><span class="contact-value">${escapeHtmlLocal(dealer.email || "—")}</span></div>
       <div class="contact-row"><span class="contact-label">Cidade</span><span class="contact-value">${escapeHtmlLocal(dealer.city || "—")}</span></div>
       ${dealer.address ? `<div class="contact-row"><span class="contact-label">Morada</span><span class="contact-value">${escapeHtmlLocal(dealer.address)}</span></div>` : ""}
     </div>
+    <div class="message" id="phone-edit-message"></div>
     <div class="contact-note">
       Estes são os dados que outros concessionários veem quando encontram as tuas peças.
-      Para corrigir algo, contacta o administrador da plataforma: <a href="mailto:stockrederenault@gmail.com">stockrederenault@gmail.com</a>.
+      O telefone já podes corrigir aqui em cima. Para o resto (email, cidade, morada),
+      contacta o administrador da plataforma: <a href="mailto:stockrederenault@gmail.com">stockrederenault@gmail.com</a>.
     </div>
   `;
+
+  attachPhoneMask(document.getElementById("edit-phone-input"));
+
+  document.getElementById("btn-save-phone").addEventListener("click", async () => {
+    const input = document.getElementById("edit-phone-input");
+    const msg = document.getElementById("phone-edit-message");
+    const token = localStorage.getItem("pt_session");
+
+    const res = await fetch(`${API_BASE}/api/dealers/me/phone`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ phone: input.value }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Não foi possível guardar o telefone.", "error");
+      return;
+    }
+
+    // Aviso importante: o telefone também serve para entrar na
+    // conta -- deixa claro que a próxima vez que a pessoa for fazer
+    // login, é com o número novo que tem de o fazer.
+    showMessage(msg, "✓ Telefone atualizado. Usa este número para entrares da próxima vez.", "success");
+  });
 }
 
 // ---------- alertas de referência ----------
@@ -1236,6 +1291,8 @@ document.getElementById("btn-create-alert").addEventListener("click", async () =
 // Gravadas no backend (ligadas à conta) e também refletidas no
 // localStorage, para index.html/publicar.html verem a mudança de
 // imediato, sem precisarem de voltar a consultar o backend.
+let preferencesMessageTimeout = null;
+
 async function updatePreference(patch) {
   const token = localStorage.getItem("pt_session");
   const msg = document.getElementById("preferences-message");
@@ -1248,7 +1305,7 @@ async function updatePreference(patch) {
 
   if (!res.ok) {
     showMessage(msg, "Não foi possível guardar a preferência.", "error");
-    return;
+    return; // erro fica visível, não desaparece sozinho -- precisa de atenção
   }
 
   if (typeof patch.photoThumbnails === "boolean") {
@@ -1258,7 +1315,16 @@ async function updatePreference(patch) {
     localStorage.setItem("pref_compact_list", String(patch.compactList));
   }
 
-  showMessage(msg, "Preferência guardada.", "success");
+  // Confirmação de sucesso desaparece sozinha ao fim de alguns
+  // segundos -- ao contrário de erros, não precisa de ficar ali
+  // permanentemente a pedir atenção, e desaparecer sozinha deixa
+  // claro que "isto já está tratado", mesmo que a pessoa mude várias
+  // preferências seguidas.
+  showMessage(msg, "✓ Preferência guardada.", "success");
+  clearTimeout(preferencesMessageTimeout);
+  preferencesMessageTimeout = setTimeout(() => {
+    msg.classList.remove("show");
+  }, 2500);
 }
 
 document.getElementById("pref-photo-thumbnails").addEventListener("change", (e) => {
@@ -1286,19 +1352,70 @@ function renderMyListings(listings, token) {
   const container = document.getElementById("my-listings");
   container.innerHTML = "";
 
-  const active = listings.filter(l => l.status !== "removed");
+  const activeListings = listings.filter(l => l.status === "active");
+  const soldListings = listings.filter(l => l.status === "sold");
 
-  if (active.length === 0) {
+  if (activeListings.length === 0 && soldListings.length === 0) {
     container.innerHTML = '<p style="color: var(--ink-faint); font-size: 0.88rem;">Ainda não publicaste nenhuma peça.</p>';
     return;
   }
 
-  for (const l of active) {
-    const row = document.createElement("div");
-    row.className = "listing-row";
-    row.dataset.listingId = l.id;
+  const activeSection = document.createElement("div");
+  activeSection.id = "listings-section-active";
+  if (activeListings.length === 0) {
+    activeSection.innerHTML = '<p style="color: var(--ink-faint); font-size: 0.88rem;">Nenhuma peça disponível de momento.</p>';
+  }
+  container.appendChild(activeSection);
+  for (const l of activeListings) renderListingRow(l, activeSection, token);
 
-    const statusLabel = { active: "disponível", sold: "vendida" }[l.status] || l.status;
+  // Peças vendidas ficam numa secção à parte, separadas visualmente
+  // das disponíveis -- antes ficavam misturadas na mesma lista, só
+  // distinguidas por um pequeno texto "vendida" a meio da linha, fácil
+  // de não reparar.
+  if (soldListings.length > 0) {
+    const soldHeader = document.createElement("h3");
+    soldHeader.className = "listings-sold-header";
+    soldHeader.textContent = `Vendidas (${soldListings.length})`;
+    container.appendChild(soldHeader);
+
+    const soldSection = document.createElement("div");
+    soldSection.id = "listings-section-sold";
+    container.appendChild(soldSection);
+    for (const l of soldListings) renderListingRow(l, soldSection, token);
+  }
+
+  // Delegação de eventos aplicada ao container principal, que já
+  // engloba as duas secções (ativas + vendidas) -- mais simples do
+  // que ligar listeners individualmente dentro de cada linha
+  // renderizada por renderListingRow().
+  container.querySelectorAll("[data-add-tag-for]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mgr = altRefsManagers[btn.dataset.addTagFor];
+      if (mgr) mgr.addFromInput();
+    });
+  });
+
+  container.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => handleListingAction(btn.dataset.action, Number(btn.dataset.id), token));
+  });
+
+  container.querySelectorAll(".edit-save-btn").forEach(btn => {
+    btn.addEventListener("click", () => saveListingEdit(Number(btn.dataset.id), token));
+  });
+
+  container.querySelectorAll(".edit-cancel-btn").forEach(btn => {
+    btn.addEventListener("click", () => toggleEditForm(Number(btn.dataset.id), false));
+  });
+
+  container.querySelectorAll(".sold-checkbox").forEach(cb => {
+    cb.addEventListener("change", (e) => toggleSoldStatus(Number(e.target.dataset.id), e.target.checked, token));
+  });
+}
+
+function renderListingRow(l, container, token) {
+    const row = document.createElement("div");
+    row.className = "listing-row" + (l.status === "sold" ? " listing-row-sold" : "");
+    row.dataset.listingId = l.id;
 
     // photos_data vem como "id:::url:::thumb:::delete|||id:::url:::thumb:::delete|||...".
     // Separador ':::' escolhido de propósito para nunca colidir com
@@ -1313,7 +1430,7 @@ function renderMyListings(listings, token) {
         <div class="listing-top">
           <div class="listing-info">
             <div class="listing-ref">${escapeHtmlLocal(l.reference)}</div>
-            <div class="listing-meta">${statusLabel}${l.description ? " · " + escapeHtmlLocal(l.description) : ""}</div>
+            <div class="listing-meta">${l.description ? escapeHtmlLocal(l.description) : ""}</div>
             ${l.alt_references ? `<div class="listing-alt-refs">Substitui: ${escapeHtmlLocal(l.alt_references)}</div>` : ""}
             ${l.notes ? `<div class="listing-notes">${escapeHtmlLocal(l.notes)}</div>` : ""}
           </div>
@@ -1323,6 +1440,10 @@ function renderMyListings(listings, token) {
               <span class="qty-value">${l.quantity}</span>
               <button class="qty-btn" data-action="inc" data-id="${l.id}" ${l.status === "sold" ? "disabled" : ""}>+</button>
             </div>
+            <label class="sold-checkbox-label" title="${l.status === 'sold' ? 'Desmarcar torna a peça disponível outra vez' : 'Marca esta peça como vendida'}">
+              <input type="checkbox" class="sold-checkbox" data-id="${l.id}" ${l.status === "sold" ? "checked" : ""} />
+              Vendida
+            </label>
             <div class="listing-actions">
               <button class="edit-btn" data-action="edit" data-id="${l.id}" title="Editar descrição/notas">✎</button>
               <button class="delete-btn" data-action="delete" data-id="${l.id}" title="Eliminar">✕</button>
@@ -1419,26 +1540,6 @@ function renderMyListings(listings, token) {
         loadDashboard(); // recarrega para mostrar a foto nova na galeria
       });
     }
-  }
-
-  container.querySelectorAll("[data-add-tag-for]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const mgr = altRefsManagers[btn.dataset.addTagFor];
-      if (mgr) mgr.addFromInput();
-    });
-  });
-
-  container.querySelectorAll("button[data-action]").forEach(btn => {
-    btn.addEventListener("click", () => handleListingAction(btn.dataset.action, Number(btn.dataset.id), token));
-  });
-
-  container.querySelectorAll(".edit-save-btn").forEach(btn => {
-    btn.addEventListener("click", () => saveListingEdit(Number(btn.dataset.id), token));
-  });
-
-  container.querySelectorAll(".edit-cancel-btn").forEach(btn => {
-    btn.addEventListener("click", () => toggleEditForm(Number(btn.dataset.id), false));
-  });
 }
 
 function toggleEditForm(listingId, show) {
@@ -1476,6 +1577,29 @@ async function deleteListingPhoto(listingId, photoId, deleteUrl, token) {
   // (deixa de estar ligada a qualquer peça nossa), preferimos manter
   // a experiência simples aqui em vez de abrir outra aba para o
   // utilizador confirmar manualmente -- ficava estranho.
+  loadDashboard();
+}
+
+/**
+ * Marca/desmarca uma peça como vendida via checkbox explícita, em
+ * vez de a pessoa ter de "descobrir" que zerar a quantidade faz o
+ * mesmo (o que já continua a acontecer, esta é só uma segunda forma,
+ * mais direta, de o fazer).
+ *
+ * Ao desmarcar (reativar), a quantidade volta a 1 -- não fazia
+ * sentido a peça ficar "active" com quantidade 0. Se tinha mais do
+ * que uma unidade antes de ser vendida, a pessoa ajusta com os
+ * botões +/- a seguir.
+ */
+async function toggleSoldStatus(listingId, checked, token) {
+  const body = checked ? { status: "sold" } : { status: "active", quantity: 1 };
+
+  await fetch(`${API_BASE}/api/listings/${listingId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+
   loadDashboard();
 }
 

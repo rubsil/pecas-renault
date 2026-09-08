@@ -122,6 +122,7 @@ D1 → `peca-troca-db` → Console). Histórico:
 - `0010_dealer_preferences.sql` — colunas `pref_photo_thumbnails`, `pref_compact_list`
 - `0011_more_dealer_preferences.sql` — colunas `pref_sort_order`, `pref_default_view`
 - `0012_alert_email_notifications.sql` — coluna `pref_alert_notifications` + tabela `alert_notifications_sent`
+- `0013_login_rate_limit.sql` — colunas `login_code_requests_count`, `login_code_window_started_at`
 
 ## Correções manuais na base de dados
 
@@ -477,6 +478,74 @@ Falhas de envio (Gmail não configurado, erro de rede, etc.) nunca
 bloqueiam a publicação da peça em si -- a função é chamada depois de
 a peça já estar gravada na base de dados, e qualquer erro fica só
 nos logs do Worker.
+
+## Editar o próprio telefone
+
+`PATCH /api/dealers/me/phone` (rota separada de preferências, de
+propósito -- telefone é dado de contacto real, não preferência de
+visualização). Valida 9 dígitos depois de normalizar. Editável
+diretamente na ficha de contacto do dashboard (campo + botão
+"Guardar"), com aviso de que esse número passa a servir para login
+a partir daí. Email não é editável -- já é escolhido livremente no
+registo, ao contrário do telefone (pré-preenchido pela lista
+oficial), por isso não há o mesmo caso de precisar de corrigir depois.
+
+## Rate limiting no pedido de código de login (migração 0013)
+
+Máximo 5 pedidos de código por hora, por conta -- evita gastar a
+quota diária do Gmail sem necessidade real (ex: alguém a testar
+repetidamente, ou abuso). Janela deslizante: `login_code_window_started_at`
+guarda quando a janela atual começou, `login_code_requests_count`
+conta os pedidos dentro dela; ao passar 1 hora desde o início da
+janela, reinicia sozinha no próximo pedido. Testada isoladamente com
+4 cenários (primeiro pedido, janela expirada, dentro do limite,
+excede o limite). Não afeta o login demo, que usa uma rota
+completamente separada (`/api/auth/demo-login`).
+
+## Peças vendidas, checkbox explícita + secção própria
+
+Antes, marcar uma peça como vendida só acontecia implicitamente ao
+zerar a quantidade (botão "−" repetidamente) -- sem nenhum aviso de
+que isso ia acontecer, fácil de fazer sem querer e sem forma de
+reverter pela interface (o botão "+" fica desativado quando
+`status = sold`).
+
+Agora, no dashboard: checkbox "Vendida" explícita ao lado do
+contador de quantidade. Marcar chama `PATCH /api/listings/:id` com
+`{status: "sold"}` (não mexe na quantidade -- fica como estava,
+guardando "quantas tinha quando vendi" como histórico).
+**Desmarcar** chama o mesmo endpoint com `{status: "active", quantity: 1}`
+-- reativa com quantidade 1 (não fazia sentido "active" com
+quantidade 0); se tinha mais unidades antes, ajusta-se com os
+botões +/- a seguir.
+
+Peças vendidas aparecem numa **secção própria**, separada
+visualmente das disponíveis (título "Vendidas (N)", linhas com
+opacidade reduzida) -- antes ficavam misturadas na mesma lista, só
+distinguidas por um texto pequeno "vendida" a meio da linha.
+
+`renderMyListings()` foi dividida: a função extraiu a construção de
+cada linha para `renderListingRow()` (chamada uma vez por peça, para
+cada secção), mantendo a delegação de eventos (tags, ações, guardar/
+cancelar edição) ligada ao container principal que engloba as duas
+secções -- sem isto, os listeners não apanhavam as linhas
+renderizadas dentro de sub-containers.
+
+## Pesquisa por descrição, não só por referência
+
+`GET /api/listings/search` passa a procurar também em
+`parts_listings.description`, além da referência (principal e
+alternativas). A referência usa sempre `normalizeReference()`
+(maiúsculas, sem espaços/hífens -- correto para códigos de peça),
+mas a descrição usa o texto tal como escrito, só em minúsculas --
+usar `normalizeReference()` aqui removeria os espaços entre palavras
+("kit embraiagem" viraria "KITEMBRAIAGEM"), o que nunca bateria
+certo com nada. Testado isoladamente: pesquisa por referência,
+por descrição (com e sem maiúsculas), sem correspondência, e
+especificamente o cenário de duas palavras com espaço.
+
+Placeholder do campo de pesquisa atualizado em `index.html` (hero e
+barra fixa) para refletir que aceita também descrição.
 
 ## Nome da empresa no registo — nota prática
 
