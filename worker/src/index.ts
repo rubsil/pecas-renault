@@ -48,6 +48,7 @@
 //   PATCH  /api/admin/dealers/:id           — edita um concessionário (nome, telefone, email, verified)
 //   DELETE /api/admin/dealers/:id           — elimina um concessionário e as suas peças
 //   POST   /api/admin/dealers/:id/resend-confirmation — reenvia código de confirmação de email
+//   POST   /api/admin/dealers/:id/reset-rate-limit — repõe o limite de pedidos de código de login
 //   POST   /api/admin/dealers/:id/geocode  — geocodifica a morada do concessionário (lat/lon)
 //   GET    /api/admin/listings              — lista todas as peças (qualquer estado)
 //   PATCH  /api/admin/listings/:id          — edita qualquer peça
@@ -1785,6 +1786,18 @@ export default {
         message: emailResult.sentByEmail ? "Novo código enviado por email." : "Novo código gerado.",
         ...emailResult,
       });
+    }
+
+    // ---------- repor o limite de pedidos de código de login (uso ocasional, ex: testes) ----------
+    const resetRateLimitMatch = path.match(/^\/api\/admin\/dealers\/(\d+)\/reset-rate-limit$/);
+    if (resetRateLimitMatch && request.method === "POST") {
+      const dealerId = Number(resetRateLimitMatch[1]);
+      await env.DB
+        .prepare("UPDATE dealers SET login_code_requests_count = 0, login_code_window_started_at = NULL WHERE id = ?")
+        .bind(dealerId)
+        .run();
+
+      return json({ message: "Limite de pedidos de código reposto para esta conta." });
     }
 
     // ---------- geocodificar a morada de um concessionário ----------
