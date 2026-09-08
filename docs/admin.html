@@ -993,7 +993,7 @@ function renderDealers(dealers) {
           <button class="btn-mini save" data-action="save-dealer" data-id="${d.id}">Guardar</button>
           ${!d.verified ? `<button class="btn-mini verify" data-action="verify-dealer" data-id="${d.id}">Verificar</button>` : ""}
           ${!d.email_confirmed ? `<button class="btn-mini resend" data-action="resend-confirmation" data-id="${d.id}">Reenviar código</button>` : ""}
-          <button class="btn-mini reset-rate-limit" data-action="reset-rate-limit" data-id="${d.id}" title="Repõe o limite de 5 pedidos de código de login por hora, para esta conta">Desbloquear pedidos de código</button>
+          ${!d.is_demo ? `<button class="btn-mini reset-rate-limit" data-action="reset-rate-limit" data-id="${d.id}" title="Repõe o limite de 5 pedidos de código de verificação por hora, para esta conta">Repor limite de códigos verificação</button>` : ""}
           ${d.is_demo
             ? `<button class="btn-mini reset-demo" data-action="reset-demo">Repor demo</button>`
             : `<button class="btn-mini delete" data-action="delete-dealer" data-id="${d.id}" data-name="${escapeAttr(d.company_name)}" data-count="${d.active_listings_count || 0}">Eliminar</button>`
