@@ -9,6 +9,7 @@
 //   GET  /api/dealers/me              — dados do concessionário autenticado
 //   PATCH /api/dealers/me/preferences — atualiza as próprias preferências de visualização
 //   PATCH /api/dealers/me/phone       — atualiza o próprio telefone de contacto
+//   PATCH /api/dealers/me/contact-name — atualiza a própria pessoa de contacto
 //
 //   POST /api/listings                — publica peça (autenticado)
 //   PATCH /api/listings/:id           — atualiza estado (sold/removed) (autenticado, dono)
@@ -764,6 +765,29 @@ export default {
         .run();
 
       return json({ message: "Telefone atualizado." });
+    }
+
+    // ---------- atualizar a própria pessoa de contacto ----------
+    // À semelhança do telefone: dado de contacto real, editável
+    // diretamente pelo concessionário, sem depender do admin. Ao
+    // contrário do telefone, pode ficar vazio (nem toda a gente
+    // preenche isto no registo) -- aceita string vazia para permitir
+    // "limpar" o campo.
+    if (path === "/api/dealers/me/contact-name" && request.method === "PATCH") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+
+      const body = await request.json<any>().catch(() => null);
+      if (typeof body?.contactName !== "string") {
+        return json({ error: "Nome de contacto inválido." }, { status: 400 });
+      }
+
+      await env.DB
+        .prepare("UPDATE dealers SET contact_name = ? WHERE id = ?")
+        .bind(body.contactName.trim() || null, dealerIdOrResponse)
+        .run();
+
+      return json({ message: "Pessoa de contacto atualizada." });
     }
 
     // ---------- publicar peça ----------

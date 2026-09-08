@@ -1158,6 +1158,13 @@ function renderContactCard(dealer) {
   card.innerHTML = `
     <div class="contact-grid">
       <div class="contact-row contact-row-editable">
+        <span class="contact-label">Pessoa de contacto</span>
+        <span class="contact-edit-wrap">
+          <input type="text" id="edit-contact-name-input" class="contact-edit-input" placeholder="Nome do responsável de peças" value="${escapeHtmlLocal(dealer.contact_name || "")}" />
+          <button type="button" id="btn-save-contact-name" class="contact-edit-save">Guardar</button>
+        </span>
+      </div>
+      <div class="contact-row contact-row-editable">
         <span class="contact-label">Telefone</span>
         <span class="contact-edit-wrap">
           <input type="tel" id="edit-phone-input" class="contact-edit-input" value="${escapeHtmlLocal(dealer.phone || "")}" />
@@ -1168,15 +1175,36 @@ function renderContactCard(dealer) {
       <div class="contact-row"><span class="contact-label">Cidade</span><span class="contact-value">${escapeHtmlLocal(dealer.city || "—")}</span></div>
       ${dealer.address ? `<div class="contact-row"><span class="contact-label">Morada</span><span class="contact-value">${escapeHtmlLocal(dealer.address)}</span></div>` : ""}
     </div>
+    <div class="message" id="contact-name-edit-message"></div>
     <div class="message" id="phone-edit-message"></div>
     <div class="contact-note">
       Estes são os dados que outros concessionários veem quando encontram as tuas peças.
-      O telefone já podes corrigir aqui em cima. Para o resto (email, cidade, morada),
+      A pessoa de contacto e o telefone já podes corrigir aqui em cima. Para o resto (email, cidade, morada),
       contacta o administrador da plataforma: <a href="mailto:stockrederenault@gmail.com">stockrederenault@gmail.com</a>.
     </div>
   `;
 
   attachPhoneMask(document.getElementById("edit-phone-input"));
+
+  document.getElementById("btn-save-contact-name").addEventListener("click", async () => {
+    const input = document.getElementById("edit-contact-name-input");
+    const msg = document.getElementById("contact-name-edit-message");
+    const token = localStorage.getItem("pt_session");
+
+    const res = await fetch(`${API_BASE}/api/dealers/me/contact-name`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ contactName: input.value }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Não foi possível guardar.", "error");
+      return;
+    }
+
+    showMessage(msg, "✓ Pessoa de contacto atualizada.", "success");
+  });
 
   document.getElementById("btn-save-phone").addEventListener("click", async () => {
     const input = document.getElementById("edit-phone-input");

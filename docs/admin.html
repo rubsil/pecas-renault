@@ -973,6 +973,7 @@ function renderDealers(dealers) {
         ${d.is_demo ? '<span class="badge demo">DEMO</span> ' : ""}
         <input class="editable company-name-field" data-field="companyName" value="${escapeAttr(d.company_name)}" />
       </td>
+      <td><input class="editable" data-field="contactName" value="${escapeAttr(d.contact_name || "")}" placeholder="—" /></td>
       <td><input class="editable phone-field" data-field="phone" value="${escapeAttr(d.phone)}" ${d.is_demo ? 'disabled title="Telefone fixo da conta de demonstração, não editável"' : ""} /></td>
       <td><input class="editable email-field" data-field="email" value="${escapeAttr(d.email)}" ${d.is_demo ? 'disabled title="Email fixo da conta de demonstração, não editável"' : ""} /></td>
       <td><input class="editable city-field" data-field="city" value="${escapeAttr(d.city || "")}" /></td>
@@ -1006,6 +1007,7 @@ function renderDealers(dealers) {
       <thead>
         <tr>
           <th class="sortable" data-sort-field="company_name">Empresa${sortArrow("dealers", "company_name")}</th>
+          <th>Pessoa de contacto</th>
           <th class="sortable" data-sort-field="phone">Telefone${sortArrow("dealers", "phone")}</th>
           <th>Email</th>
           <th class="sortable" data-sort-field="city">Cidade${sortArrow("dealers", "city")}</th>
