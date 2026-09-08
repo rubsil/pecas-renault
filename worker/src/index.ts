@@ -101,6 +101,25 @@ async function requireDealer(request: Request, env: Env): Promise<number | Respo
   return dealerId;
 }
 
+/**
+ * Como requireDealer, mas nunca bloqueia o pedido -- devolve o id do
+ * concessionário autenticado se houver sessão válida, ou null caso
+ * contrário. Usado nas rotas públicas de pesquisa (browse, search,
+ * map), onde a resposta continua a existir sem sessão, mas alguns
+ * campos (como o email) só devem ser incluídos para quem está
+ * autenticado.
+ *
+ * Corrige uma fragilidade real: antes, a decisão de "mostrar o email
+ * só a quem tem sessão" era só do frontend (o backend enviava sempre
+ * o email na resposta, e o frontend escondia-o visualmente) -- quem
+ * inspecionasse a resposta de rede diretamente via as ferramentas de
+ * developer do browser via sempre o email, sessão ou não.
+ */
+async function optionalDealerId(request: Request, env: Env): Promise<number | null> {
+  const token = bearerToken(request);
+  return resolveSession(env.DB, token);
+}
+
 function requireAdmin(request: Request, env: Env): Response | null {
   if (!checkAdminAuth(request, env)) {
     return json({ error: "Password de administrador inválida." }, { status: 401 });
@@ -1007,11 +1026,14 @@ export default {
     // ---------- pesquisar por referência ----------
     // ---------- listar todas as peças ativas (sem pesquisa) ----------
     if (path === "/api/listings/browse" && request.method === "GET") {
+      const requesterId = await optionalDealerId(request, env);
+
       const rows = await env.DB
         .prepare(
           `SELECT
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
-             d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified, d.lat, d.lon,
+             d.company_name, d.phone, d.city, d.postal_code, d.verified, d.lat, d.lon,
+             ${requesterId ? "d.email," : "NULL AS email,"}
              (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
              (SELECT GROUP_CONCAT(lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
            FROM parts_listings pl
@@ -1061,10 +1083,13 @@ export default {
     // pin por peça, que ficaria empilhado e ilegível quando um
     // concessionário tem várias peças publicadas.
     if (path === "/api/listings/map" && request.method === "GET") {
+      const requesterId = await optionalDealerId(request, env);
+
       const rows = await env.DB
         .prepare(
           `SELECT
-             d.id AS dealer_id, d.company_name, d.city, d.phone, d.email, d.verified, d.lat, d.lon,
+             d.id AS dealer_id, d.company_name, d.city, d.phone, d.verified, d.lat, d.lon,
+             ${requesterId ? "d.email," : "NULL AS email,"}
              COUNT(pl.id) AS listing_count,
              GROUP_CONCAT(pl.reference, ', ') AS references_list
            FROM parts_listings pl
@@ -1085,6 +1110,8 @@ export default {
         return json({ error: "Indica pelo menos 2 caracteres da referência ou descrição." }, { status: 400 });
       }
 
+      const requesterId = await optionalDealerId(request, env);
+
       // Procura na referência principal, nas alternativas, E na
       // descrição da peça -- útil para quem sabe o que precisa (ex:
       // "amortecedor") mas não sabe a referência exata. A descrição
@@ -1099,7 +1126,8 @@ export default {
         .prepare(
           `SELECT DISTINCT
              pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
-             d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified,
+             d.company_name, d.phone, d.city, d.postal_code, d.verified,
+             ${requesterId ? "d.email," : "NULL AS email,"}
              (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
              (SELECT GROUP_CONCAT(lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
            FROM parts_listings pl

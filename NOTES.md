@@ -547,6 +547,29 @@ especificamente o cenário de duas palavras com espaço.
 Placeholder do campo de pesquisa atualizado em `index.html` (hero e
 barra fixa) para refletir que aceita também descrição.
 
+## Segurança: email já não é exposto na API a quem não tem sessão
+
+Revisão de segurança confirmou uma fragilidade real: as 3 rotas
+públicas de pesquisa (`browse`, `search`, `map`) enviavam sempre o
+email do concessionário na resposta JSON, mesmo sem sessão -- a
+decisão de "só mostrar a quem está autenticado" era só do frontend
+(escondia visualmente), não do backend. Quem inspecionasse a resposta
+de rede diretamente (ferramentas de developer do browser) via sempre
+o email, sessão ou não.
+
+Corrigido com `optionalDealerId()` (como `requireDealer()`, mas nunca
+bloqueia o pedido -- devolve o id do concessionário se houver sessão
+válida, ou `null` caso contrário). As 3 rotas passam a construir a
+query dinamicamente: `d.email` só entra no `SELECT` quando há sessão
+confirmada pelo backend; sem isso, o campo vem sempre `NULL`. O
+frontend não precisou de nenhuma alteração -- já verificava
+`r.email` antes de mostrar o link, por isso passa a funcionar
+corretamente sem mudança de código aí.
+
+Testada isoladamente a lógica de resolução de sessão opcional (token
+válido, expirado, ausente, inexistente) e a construção dinâmica da
+query nos dois casos.
+
 ## Nome da empresa no registo — nota prática
 
 A lista oficial da Renault usa muitas vezes um nome comercial
