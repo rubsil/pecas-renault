@@ -139,6 +139,12 @@
   }
   .hero-inner { flex: 0 1 480px; min-width: 0; max-width: 480px; }
 
+  /* Fora de .hero-layout, com o mesmo padding lateral -- estes blocos
+     (Como funciona, pesquisa, CTA) precisam da largura TOTAL do hero,
+     ao contrário de .hero-inner (limitado a 480px só para ficar perto
+     do cartão .why-card). */
+  .hero-below-layout { position: relative; z-index: 1; padding: 0 1.5rem; margin-top: 1.5rem; }
+
   /* Entrada em cascata -- cada elemento aparece com um pequeno atraso
      sobre o anterior, movimento subtil de baixo para cima. Só corre
      uma vez, ao carregar a página. */
@@ -749,45 +755,6 @@
         <div><div class="hero-meta-value" id="hero-meta-listings">—</div><div class="hero-meta-label">peças publicadas</div></div>
         <div><div class="hero-meta-value">100%</div><div class="hero-meta-label">gratuito, sem intermediários</div></div>
       </div>
-
-      <div class="hero-how-it-works" id="hero-how-it-works" style="display: none;">
-        <div class="hiw-step">
-          <div class="hiw-step-num">1</div>
-          <div class="hiw-step-text"><strong>Publica</strong> as peças sem rotatividade que tens em stock.</div>
-        </div>
-        <div class="hiw-step">
-          <div class="hiw-step-num">2</div>
-          <div class="hiw-step-text"><strong>Procura</strong> pela referência que precisas, antes de encomendar peça nova.</div>
-        </div>
-        <div class="hiw-step">
-          <div class="hiw-step-num">3</div>
-          <div class="hiw-step-text"><strong>Contacta</strong> diretamente quem tiver a peça, sem intermediários.</div>
-        </div>
-      </div>
-
-      <div class="search-row">
-        <input type="text" id="ref-input" placeholder="ex: 8200123456 ou 'amortecedor'" autocomplete="off" />
-        <button id="search-btn">Procurar</button>
-      </div>
-
-      <p class="hero-register-cta" id="hero-register-cta" style="display: none;">
-        Já és concessionário Renault ou Dacia? <a href="conta.html">Regista a tua conta gratuitamente <span class="cta-arrow">→</span></a>
-      </p>
-
-      <!-- Em ecrãs estreitos não há espaço vazio para o cartão --
-           a mesma informação fica sempre visível aqui, sem a mecânica
-           de expandir/recolher (que só faz sentido para poupar espaço
-           em ecrãs largos). -->
-      <div class="why-inline" id="why-inline" style="display: none;">
-        <p class="why-text">
-          <strong>Porque existe isto:</strong> às vezes encomenda-se peça a mais, ou a peça errada — e a Renault
-          não aceita devolução. Essa peça fica parada no stock, à espera de um cliente que pode nunca aparecer.
-          Só que noutro local, alguém pode estar mesmo a precisar dela agora.
-        </p>
-        <p class="why-disclaimer">
-          Projeto independente — sem ligação oficial à Renault ou Dacia.
-        </p>
-      </div>
     </div>
 
     <!-- Cartão sempre visível pelo cabeçalho, com o texto a expandir
@@ -809,6 +776,52 @@
           Projeto independente — sem ligação oficial à Renault ou Dacia.
         </p>
       </div>
+    </div>
+  </div>
+
+  <!-- Fora de .hero-layout de propósito -- estes blocos precisam da
+       largura TOTAL do hero (os 3 passos lado a lado, o campo de
+       pesquisa), não só da largura estreita reservada ao texto do
+       título/estatísticas. Só .hero-inner + .why-card ficam lado a
+       lado; o resto continua a ocupar o hero inteiro, como sempre. -->
+  <div class="hero-below-layout">
+    <div class="hero-how-it-works" id="hero-how-it-works" style="display: none;">
+      <div class="hiw-step">
+        <div class="hiw-step-num">1</div>
+        <div class="hiw-step-text"><strong>Publica</strong> as peças sem rotatividade que tens em stock.</div>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-step-num">2</div>
+        <div class="hiw-step-text"><strong>Procura</strong> pela referência que precisas, antes de encomendar peça nova.</div>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-step-num">3</div>
+        <div class="hiw-step-text"><strong>Contacta</strong> diretamente quem tiver a peça, sem intermediários.</div>
+      </div>
+    </div>
+
+    <div class="search-row">
+      <input type="text" id="ref-input" placeholder="ex: 8200123456 ou 'amortecedor'" autocomplete="off" />
+      <button id="search-btn">Procurar</button>
+    </div>
+
+    <p class="hero-register-cta" id="hero-register-cta" style="display: none;">
+      Já és concessionário Renault ou Dacia? <a href="conta.html">Regista a tua conta gratuitamente <span class="cta-arrow">→</span></a>
+    </p>
+
+    <!-- Em ecrãs estreitos não há espaço vazio para o cartão --
+         a mesma informação fica sempre visível aqui, sem a mecânica
+         de expandir/recolher (que só faz sentido para poupar espaço
+         em ecrãs largos). -->
+    <div class="why-inline" id="why-inline" style="display: none;">
+      <p class="why-text">
+        <strong>Porque existe isto:</strong> às vezes encomenda-se peça a mais, ou a peça errada — e a Renault
+        não aceita devolução. Essa peça fica parada no stock, à espera de um cliente que pode nunca aparecer.
+        Só que noutro local, alguém pode estar mesmo a precisar dela agora.
+      </p>
+      <p class="why-disclaimer">
+        Projeto independente — sem ligação oficial à Renault ou Dacia.
+      </p>
     </div>
   </div>
 </div>
