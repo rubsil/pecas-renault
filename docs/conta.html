@@ -744,21 +744,30 @@ document.getElementById("btn-login-password").addEventListener("click", async ()
 });
 
 // ---------- proposta de definir password, depois do primeiro login por código ----------
-function showPasswordProposalModal() {
+function showPasswordProposalModal(isFirstEverLogin) {
   if (document.getElementById("password-proposal-overlay")) return;
+
+  const title = isFirstEverLogin
+    ? "Bem-vindo! Queres entrar sem código de email da próxima vez?"
+    : "Queres entrar sem código de email da próxima vez?";
+
+  const explanation = isFirstEverLogin
+    ? `Por defeito, entras sempre com um código enviado por email -- é o que acabaste de fazer agora.
+       Se preferires, podes definir já uma password, para entrar mais depressa das próximas vezes,
+       sem esperar pelo email. Se não gravares nada aqui, não há problema nenhum: continuas sempre a
+       usar o código por email, e podes sempre definir uma password mais tarde, nas definições da tua conta.`
+    : `Se guardares uma password para a tua conta, podes entrar diretamente com ela,
+       sem esperar pelo email. Se não gravares, continuas sempre a usar o código por
+       email, sem problema nenhum -- podes sempre definir uma password mais tarde, nas
+       definições da tua conta.`;
 
   const overlay = document.createElement("div");
   overlay.id = "password-proposal-overlay";
   overlay.className = "password-proposal-overlay";
   overlay.innerHTML = `
     <div class="password-proposal-box">
-      <h3>Queres entrar sem código de email da próxima vez?</h3>
-      <p>
-        Se guardares uma password para a tua conta, podes entrar diretamente com ela,
-        sem esperar pelo email. Se não gravares, continuas sempre a usar o código por
-        email, sem problema nenhum -- podes sempre definir uma password mais tarde, nas
-        definições da tua conta.
-      </p>
+      <h3>${title}</h3>
+      <p>${explanation}</p>
       <label for="proposal-password">Password</label>
       <input type="password" id="proposal-password" placeholder="Pelo menos 8 caracteres" autocomplete="new-password" />
       <label for="proposal-password-confirm">Repetir password</label>
@@ -1120,6 +1129,14 @@ document.getElementById("btn-confirm-email").addEventListener("click", async () 
     }
 
     localStorage.setItem("pt_session", data.sessionToken);
+    // Marca para mostrar a proposta de definir password, tal como no
+    // login normal por código -- assim, quem acaba de se registar já
+    // percebe logo de início como funciona o login (código por email
+    // por defeito, password como atalho opcional), em vez de só
+    // descobrir isso mais tarde, na próxima vez que voltar a entrar.
+    // Valor "register" (não "true") para o modal saber que é a
+    // primeira vez de sempre, e adaptar o texto de boas-vindas.
+    sessionStorage.setItem("logged_in_via_code", "register");
     loadDashboard();
   } catch (err) {
     showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
@@ -1368,10 +1385,13 @@ async function loadDashboard() {
     // não tiver uma definida -- sessionStorage garante que isto só
     // acontece uma vez por sessão de browser, não a cada
     // loadDashboard() (que também corre, por exemplo, ao voltar de
-    // outra aba).
-    if (sessionStorage.getItem("logged_in_via_code") === "true" && !meData.dealer.has_password) {
+    // outra aba). O valor "register" identifica quem acabou de se
+    // registar agora mesmo, para o modal ajustar o texto de
+    // boas-vindas; "true" é o login normal por código.
+    const loginMethod = sessionStorage.getItem("logged_in_via_code");
+    if (loginMethod && !meData.dealer.has_password) {
       sessionStorage.removeItem("logged_in_via_code");
-      showPasswordProposalModal();
+      showPasswordProposalModal(loginMethod === "register");
     }
 
     const listingsRes = await fetch(`${API_BASE}/api/listings/mine`, {
