@@ -491,7 +491,9 @@
     color: var(--ink-soft);
     cursor: pointer;
   }
-  .photo-toggle-label:first-of-type { margin-left: auto; }
+  #photo-thumbnails-toggle-label { margin-left: auto; }
+  #photo-thumbnails-toggle-label.hidden-toggle ~ #compact-list-toggle-label { margin-left: auto; }
+  .hidden-toggle { display: none !important; }
   .photo-toggle-label input { cursor: pointer; }
 
   .map-container {
@@ -636,11 +638,11 @@
   <div class="view-toggle">
     <button class="view-toggle-btn active" id="btn-view-list">Lista</button>
     <button class="view-toggle-btn" id="btn-view-map" title="Disponível depois de criares conta">Mapa 🔒</button>
-    <label class="photo-toggle-label">
+    <label class="photo-toggle-label" id="photo-thumbnails-toggle-label">
       <input type="checkbox" id="toggle-photo-thumbnails" checked />
       Mostrar miniaturas de fotos
     </label>
-    <label class="photo-toggle-label">
+    <label class="photo-toggle-label" id="compact-list-toggle-label">
       <input type="checkbox" id="toggle-compact-list" />
       Lista compacta
     </label>
@@ -1345,6 +1347,13 @@ if (sessionToken) {
   // quem já tem conta não precisa de ver sempre.
   document.getElementById("hero-how-it-works").style.display = "flex";
   document.getElementById("hero-register-cta").style.display = "block";
+
+  // "Mostrar miniaturas de fotos" não tem efeito nenhum sem sessão --
+  // a API já nem devolve fotos nesse caso (ver renderCardList()) --
+  // por isso o toggle só confundiria. "Lista compacta" continua a
+  // fazer sentido, a versão reduzida (3 colunas) também beneficia de
+  // ser vista em tabela.
+  document.getElementById("photo-thumbnails-toggle-label").classList.add("hidden-toggle");
 
   loadInitialResults();
 }
