@@ -177,6 +177,7 @@
   .btn-mini {
     padding: 0.3rem 0.6rem; font-size: 0.78rem; font-weight: 600; border-radius: 4px;
     cursor: pointer; border: 1px solid var(--line); background: var(--paper-raised);
+    white-space: nowrap; /* nunca quebrar o texto dentro do botão -- sem isto, ficava "Repor" / "limite" / "código" em 3 linhas */
   }
   .btn-mini.save { border-color: var(--accent); color: var(--accent-text); }
   .btn-mini.save:hover { background: var(--accent-soft); }
