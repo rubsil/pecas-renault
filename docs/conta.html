@@ -83,6 +83,7 @@
     background: var(--paper-raised); color: var(--ink); font-family: var(--sans);
   }
   input:focus { outline: none; border-color: var(--hero-accent); }
+  input:disabled { background: var(--paper); color: var(--ink-faint); cursor: not-allowed; }
 
   button.submit {
     width: 100%; margin-top: 1.5rem; padding: 0.8rem;
@@ -426,12 +427,8 @@
 
     <div class="panel active" id="panel-login">
       <div id="login-step-phone">
-        <label for="login-phone">Telefone da conta</label>
-        <input type="tel" id="login-phone" placeholder="213 123 456" />
-
         <label for="login-email">Email da conta</label>
         <input type="email" id="login-email" placeholder="pecas@exemplo.pt" />
-        <div class="hint">Pedimos os dois porque alguns concessionários de uma mesma cadeia partilham o telefone da central.</div>
 
         <div id="login-password-block" style="display: none;">
           <label for="login-password">Password</label>
@@ -440,7 +437,13 @@
             <a href="#" id="btn-forgot-password">Esqueci a password, entrar por código de email</a>
           </p>
         </div>
-        <div id="login-no-password-hint" class="hint">Enviamos um código de acesso para este email.</div>
+
+        <div id="login-phone-block">
+          <label for="login-phone">Telefone da conta</label>
+          <input type="tel" id="login-phone" placeholder="213 123 456" disabled />
+          <div class="hint">Pedimos os dois porque alguns concessionários de uma mesma cadeia partilham o telefone da central. Escreve primeiro o email, acima.</div>
+          <div class="hint" id="login-no-password-hint">Enviamos um código de acesso para este email.</div>
+        </div>
 
         <button class="submit" id="btn-request-code">Pedir código de verificação</button>
         <button class="submit" id="btn-login-password" style="display: none;">Entrar</button>
@@ -640,11 +643,13 @@ attachPhoneMask(document.getElementById("login-phone"));
 attachPhoneMask(document.getElementById("reg-phone"));
 
 // ---------- verifica se a conta tem password definida ----------
-// Assim que telefone+email estiverem preenchidos, consulta o backend
-// (com um pequeno atraso, para não pedir a cada tecla) e mostra o
-// campo de password só se essa conta realmente tiver uma definida --
-// evita mostrar um campo que nunca vai funcionar para a maioria das
-// contas, que ainda usam só código por email.
+// Assim que o email estiver preenchido (já é único por conta --
+// índice UNIQUE em dealers.email, ao contrário do telefone, que
+// pode ser partilhado entre lojas da mesma cadeia), consulta o
+// backend (com um pequeno atraso, para não pedir a cada tecla) e
+// mostra o campo de password só se essa conta realmente tiver uma
+// definida. O telefone só é pedido quando é mesmo preciso (login por
+// código); enquanto isso não se sabe, fica bloqueado.
 let checkPasswordTimeout = null;
 function schedulePasswordStatusCheck() {
   clearTimeout(checkPasswordTimeout);
@@ -652,43 +657,51 @@ function schedulePasswordStatusCheck() {
 }
 
 async function checkPasswordStatus() {
-  const phone = document.getElementById("login-phone").value.trim();
   const email = document.getElementById("login-email").value.trim();
+  const phoneInput = document.getElementById("login-phone");
   const passwordBlock = document.getElementById("login-password-block");
   const noPasswordHint = document.getElementById("login-no-password-hint");
   const btnRequestCode = document.getElementById("btn-request-code");
   const btnLoginPassword = document.getElementById("btn-login-password");
 
-  if (!phone || !email) {
+  function showPasswordMode() {
+    passwordBlock.style.display = "block";
+    noPasswordHint.style.display = "none";
+    btnRequestCode.style.display = "none";
+    btnLoginPassword.style.display = "";
+    phoneInput.disabled = true;
+    phoneInput.value = ""; // não é preciso para este fluxo, evita confusão de ficar preenchido mas bloqueado
+  }
+
+  function showCodeMode() {
     passwordBlock.style.display = "none";
     noPasswordHint.style.display = "";
     btnRequestCode.style.display = "";
     btnLoginPassword.style.display = "none";
+    phoneInput.disabled = false;
+  }
+
+  if (!email) {
+    showCodeMode();
     return;
   }
 
   try {
-    const res = await fetch(`${API_BASE}/api/auth/check-password-status?phone=${encodeURIComponent(phone)}&email=${encodeURIComponent(email)}`);
+    const res = await fetch(`${API_BASE}/api/auth/check-password-status?email=${encodeURIComponent(email)}`);
     const data = await res.json();
 
     if (data?.hasPassword) {
-      passwordBlock.style.display = "block";
-      noPasswordHint.style.display = "none";
-      btnRequestCode.style.display = "none";
-      btnLoginPassword.style.display = "";
+      showPasswordMode();
     } else {
-      passwordBlock.style.display = "none";
-      noPasswordHint.style.display = "";
-      btnRequestCode.style.display = "";
-      btnLoginPassword.style.display = "none";
+      showCodeMode();
     }
   } catch (err) {
     // Falha silenciosa -- fica no comportamento por defeito (código
     // por email), que sempre funciona independentemente disto.
+    showCodeMode();
   }
 }
 
-document.getElementById("login-phone").addEventListener("input", schedulePasswordStatusCheck);
 document.getElementById("login-email").addEventListener("input", schedulePasswordStatusCheck);
 
 document.getElementById("btn-forgot-password").addEventListener("click", (e) => {
@@ -697,16 +710,16 @@ document.getElementById("btn-forgot-password").addEventListener("click", (e) => 
   document.getElementById("login-no-password-hint").style.display = "";
   document.getElementById("btn-request-code").style.display = "";
   document.getElementById("btn-login-password").style.display = "none";
+  document.getElementById("login-phone").disabled = false;
 });
 
 document.getElementById("btn-login-password").addEventListener("click", async () => {
-  const phone = document.getElementById("login-phone").value.trim();
   const email = document.getElementById("login-email").value.trim();
   const password = document.getElementById("login-password").value;
   const msg = document.getElementById("login-message");
 
-  if (!phone || !email || !password) {
-    showMessage(msg, "Preenche telefone, email e password.", "error");
+  if (!email || !password) {
+    showMessage(msg, "Preenche o email e a password.", "error");
     return;
   }
 
@@ -714,7 +727,7 @@ document.getElementById("btn-login-password").addEventListener("click", async ()
     const res = await fetch(`${API_BASE}/api/auth/login-password`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ phone, email, password }),
+      body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
 

@@ -407,23 +407,22 @@ export default {
     if (path === "/health") return json({ ok: true, service: "peca-troca" });
 
     // ---------- registo ----------
-    // ---------- se há password de registo definida (sem revelar o valor) ----------
     // ---------- verifica se uma conta tem password definida (sem revelar mais nada) ----------
-    // Usada no ecrã de login: se a conta identificada por
-    // telefone+email tiver password, mostra o campo; caso contrário,
-    // ou se a conta não existir, mantém só a opção de código por
-    // email -- nunca confirma explicitamente se a conta existe, para
-    // não ajudar quem tentasse enumerar contas reais.
+    // Usada no ecrã de login: assim que o email estiver preenchido
+    // (já é único por conta -- índice UNIQUE em dealers.email),
+    // consulta se essa conta tem password definida, para mostrar ou
+    // não o campo. Nunca confirma explicitamente se a conta existe,
+    // para não ajudar quem tentasse enumerar contas reais -- devolve
+    // sempre hasPassword: false quando a conta não existe, exatamente
+    // a mesma resposta que dá quando existe mas não tem password.
     if (path === "/api/auth/check-password-status" && request.method === "GET") {
-      const phone = url.searchParams.get("phone") || "";
       const email = url.searchParams.get("email") || "";
-      if (!phone || !email) return json({ hasPassword: false });
+      if (!email) return json({ hasPassword: false });
 
-      const phoneNormalized = normalizePhone(phone);
       const emailNormalized = email.trim().toLowerCase();
       const dealer = await env.DB
-        .prepare("SELECT password_hash FROM dealers WHERE phone_normalized = ? AND lower(email) = ?")
-        .bind(phoneNormalized, emailNormalized)
+        .prepare("SELECT password_hash FROM dealers WHERE lower(email) = ?")
+        .bind(emailNormalized)
         .first<{ password_hash: string | null }>();
 
       return json({ hasPassword: !!dealer?.password_hash });
@@ -688,25 +687,27 @@ export default {
     // ---------- login por password (alternativa opcional ao código de email) ----------
     if (path === "/api/auth/login-password" && request.method === "POST") {
       const body = await request.json<any>().catch(() => null);
-      if (!body?.phone || !body?.email || !body?.password) {
-        return json({ error: "Telefone, email e password são obrigatórios." }, { status: 400 });
+      if (!body?.email || !body?.password) {
+        return json({ error: "Email e password são obrigatórios." }, { status: 400 });
       }
 
-      const phoneNormalized = normalizePhone(body.phone);
+      // Login por password identifica a conta só pelo email -- já é
+      // único (índice UNIQUE em dealers.email), ao contrário do
+      // telefone, que pode ser partilhado entre lojas da mesma
+      // cadeia. O fluxo por código continua a exigir os dois, porque
+      // aí o telefone ainda é necessário para outras validações.
       const emailNormalized = String(body.email).trim().toLowerCase();
       const dealer = await env.DB
-        .prepare(
-          "SELECT id, password_hash, password_salt FROM dealers WHERE phone_normalized = ? AND lower(email) = ?"
-        )
-        .bind(phoneNormalized, emailNormalized)
+        .prepare("SELECT id, password_hash, password_salt FROM dealers WHERE lower(email) = ?")
+        .bind(emailNormalized)
         .first<{ id: number; password_hash: string | null; password_salt: string | null }>();
 
       // Mensagem de erro igual quer a conta exista ou não, e quer
       // tenha password definida ou não -- evita confirmar a um
-      // atacante se um telefone/email combina com alguma conta real
+      // atacante se um email combina com alguma conta real
       // (informação que ajudaria a direcionar tentativas de força
       // bruta a contas que sabe existirem).
-      const genericError = { error: "Telefone, email ou password incorretos." };
+      const genericError = { error: "Email ou password incorretos." };
 
       if (!dealer || !dealer.password_hash || !dealer.password_salt) {
         return json(genericError, { status: 401 });
