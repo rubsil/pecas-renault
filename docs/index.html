@@ -143,6 +143,23 @@
   .hero-meta > div:first-child .hero-meta-value { color: var(--hero-accent); }
   .hero-meta-label { font-size: 0.68rem; color: var(--ink-faint); margin-top: 0.2rem; }
 
+  .hero-how-it-works {
+    display: flex; gap: 1.5rem; margin-bottom: 1.5rem; padding: 1rem 0;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .hiw-step { display: flex; align-items: flex-start; gap: 0.6rem; flex: 1 1 180px; }
+  .hiw-step-num {
+    flex-shrink: 0; width: 1.6rem; height: 1.6rem; border-radius: 50%;
+    background: var(--hero-accent); color: white; font-weight: 700; font-size: 0.82rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hiw-step-text { font-size: 0.85rem; color: var(--ink-soft); line-height: 1.4; }
+  .hiw-step-text strong { color: var(--ink); }
+
+  .hero-register-cta { font-size: 0.85rem; color: var(--ink-soft); margin: 1rem 0 0; }
+  .hero-register-cta a { color: var(--hero-accent); font-weight: 700; text-decoration: none; }
+  .hero-register-cta a:hover { text-decoration: underline; }
+
   /* ---------- barra de pesquisa fixa (aparece ao sair o hero da vista) ---------- */
   .sticky-search-bar {
     position: fixed; top: 0; left: 0; right: 0; z-index: 40;
@@ -360,6 +377,17 @@
     margin-top: 0.2rem;
   }
 
+  .result-locked {
+    grid-column: 1 / -1;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    border-top: 1px dashed var(--line);
+    padding-top: 0.6rem;
+    margin-top: 0.2rem;
+  }
+  .result-locked a { color: var(--hero-accent); font-weight: 700; text-decoration: none; }
+  .result-locked a:hover { text-decoration: underline; }
+
   .result-dealer-name {
     display: flex;
     align-items: center;
@@ -576,10 +604,30 @@
       <div><div class="hero-meta-value" id="hero-meta-listings">—</div><div class="hero-meta-label">peças publicadas</div></div>
       <div><div class="hero-meta-value">100%</div><div class="hero-meta-label">gratuito, sem intermediários</div></div>
     </div>
+
+    <div class="hero-how-it-works" id="hero-how-it-works" style="display: none;">
+      <div class="hiw-step">
+        <div class="hiw-step-num">1</div>
+        <div class="hiw-step-text"><strong>Publica</strong> as peças sem rotatividade que tens em stock.</div>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-step-num">2</div>
+        <div class="hiw-step-text"><strong>Procura</strong> pela referência que precisas, antes de encomendar peça nova.</div>
+      </div>
+      <div class="hiw-step">
+        <div class="hiw-step-num">3</div>
+        <div class="hiw-step-text"><strong>Contacta</strong> diretamente quem tiver a peça, sem intermediários.</div>
+      </div>
+    </div>
+
     <div class="search-row">
       <input type="text" id="ref-input" placeholder="ex: 8200123456 ou 'amortecedor'" autocomplete="off" />
       <button id="search-btn">Procurar</button>
     </div>
+
+    <p class="hero-register-cta" id="hero-register-cta" style="display: none;">
+      Já és concessionário Renault ou Dacia? <a href="conta.html">Regista a tua conta gratuitamente →</a>
+    </p>
   </div>
 </div>
 
@@ -587,7 +635,7 @@
 
   <div class="view-toggle">
     <button class="view-toggle-btn active" id="btn-view-list">Lista</button>
-    <button class="view-toggle-btn" id="btn-view-map">Mapa</button>
+    <button class="view-toggle-btn" id="btn-view-map" title="Disponível depois de criares conta">Mapa 🔒</button>
     <label class="photo-toggle-label">
       <input type="checkbox" id="toggle-photo-thumbnails" checked />
       Mostrar miniaturas de fotos
@@ -853,6 +901,25 @@ function renderCardList(results) {
     const card = document.createElement("div");
     card.className = "result-card";
 
+    if (!sessionToken) {
+      // Sem sessão, a API já nem devolve dados do concessionário
+      // (nome, telefone, cidade, email, fotos, notas) -- mostra só o
+      // essencial (referência, descrição, quantidade) para provar que
+      // há stock real, com um convite claro para registo em vez da
+      // secção de contacto.
+      card.innerHTML = `
+        <div class="result-ref">${escapeHtml(r.reference)}</div>
+        <div class="result-qty">${r.quantity} un.</div>
+        ${r.description ? `<div class="result-desc">${escapeHtml(r.description)}</div>` : ""}
+        ${r.alt_references ? `<div class="result-alt-refs">Substitui: ${escapeHtml(r.alt_references)}</div>` : ""}
+        <div class="result-locked">
+          <a href="conta.html">Regista o teu concessionário</a> para veres quem tem esta peça e como contactar →
+        </div>
+      `;
+      list.appendChild(card);
+      continue;
+    }
+
     const phoneDigits = (r.phone || "").replace(/\D+/g, "");
     const badge = r.verified
       ? '<span class="badge-verified">Verificado</span>'
@@ -898,6 +965,32 @@ function renderCardList(results) {
  * simples e mais acessível do que um popup extra só para isto.
  */
 function renderCompactList(results) {
+  if (!sessionToken) {
+    // Sem sessão, tabela reduzida (referência, descrição, qtd.),
+    // mesmo raciocínio de renderCardList() -- a API já não devolve
+    // dados do concessionário para quem não tem sessão.
+    const rows = results.map(r => `
+      <tr>
+        <td class="compact-ref">${escapeHtml(r.reference)}</td>
+        <td class="compact-desc" title="${escapeAttr(r.description || "")}">${escapeHtml(r.description || "—")}</td>
+        <td class="compact-qty">${r.quantity} un.</td>
+      </tr>
+    `).join("");
+
+    resultsArea.innerHTML = `
+      <div class="compact-table-wrap">
+        <table class="compact-table">
+          <thead><tr><th>Referência</th><th>Descrição</th><th>Qtd.</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="result-locked" style="margin-top: 0.75rem;">
+        <a href="conta.html">Regista o teu concessionário</a> para veres quem tem cada peça e como contactar →
+      </div>
+    `;
+    return;
+  }
+
   const rows = results.map(r => {
     const phoneDigits = (r.phone || "").replace(/\D+/g, "");
     const badge = r.verified
@@ -1016,6 +1109,23 @@ btnViewList.addEventListener("click", () => {
 });
 
 btnViewMap.addEventListener("click", () => {
+  if (!sessionToken) {
+    // Sem sessão, o mapa fica indisponível de propósito -- mostra
+    // localizações exatas de concessionários, informação sensível
+    // demais para ficar acessível a qualquer visitante anónimo (ver
+    // decisão semelhante já aplicada às rotas de pesquisa).
+    resultsArea.innerHTML = `
+      <div class="empty-state">
+        🔒 O mapa da rede fica disponível depois de criares conta.<br>
+        <a href="conta.html" style="color: var(--hero-accent); font-weight: 700;">Regista o teu concessionário →</a>
+      </div>`;
+    resultsArea.style.display = "block";
+    mapArea.style.display = "none";
+    btnViewMap.classList.remove("active");
+    btnViewList.classList.add("active");
+    return;
+  }
+
   btnViewMap.classList.add("active");
   btnViewList.classList.remove("active");
   resultsArea.style.display = "none";
@@ -1202,6 +1312,13 @@ if (sessionToken) {
   // sem isto, quem chega pela primeira vez não percebe que há registo.
   accountLink.textContent = "Entrar / Registar";
   accountLink.classList.add("nav-link-accent");
+
+  // Reforça a proposta de valor para quem chega pela primeira vez,
+  // sem sessão -- "como funciona" e um CTA extra de registo, que
+  // quem já tem conta não precisa de ver sempre.
+  document.getElementById("hero-how-it-works").style.display = "flex";
+  document.getElementById("hero-register-cta").style.display = "block";
+
   loadInitialResults();
 }
 

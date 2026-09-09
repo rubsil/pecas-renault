@@ -1148,21 +1148,38 @@ export default {
     if (path === "/api/listings/browse" && request.method === "GET") {
       const requesterId = await optionalDealerId(request, env);
 
-      const rows = await env.DB
-        .prepare(
-          `SELECT
-             pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
-             d.company_name, d.phone, d.city, d.postal_code, d.verified, d.lat, d.lon,
-             ${requesterId ? "d.email," : "NULL AS email,"}
-             (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
-             (SELECT GROUP_CONCAT(lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
-           FROM parts_listings pl
-           JOIN dealers d ON d.id = pl.dealer_id
-           WHERE pl.status = 'active' AND d.is_demo = 0
-           ORDER BY pl.created_at DESC
-           LIMIT 100`
-        )
-        .all<any>();
+      // Sem sessão, a resposta mostra só o essencial para provar que
+      // há stock real (referência, descrição, quantidade) -- nunca
+      // dados do concessionário (nome, telefone, cidade, email),
+      // fotos, ou notas livres (podem conter qualquer coisa escrita à
+      // mão, incluindo contactos). Incentiva o registo sem dar acesso
+      // de graça ao valor todo da rede.
+      const rows = requesterId
+        ? await env.DB
+            .prepare(
+              `SELECT
+                 pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
+                 d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified, d.lat, d.lon,
+                 (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
+                 (SELECT GROUP_CONCAT(lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
+               FROM parts_listings pl
+               JOIN dealers d ON d.id = pl.dealer_id
+               WHERE pl.status = 'active' AND d.is_demo = 0
+               ORDER BY pl.created_at DESC
+               LIMIT 100`
+            )
+            .all<any>()
+        : await env.DB
+            .prepare(
+              `SELECT pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.created_at,
+                      (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
+               FROM parts_listings pl
+               JOIN dealers d ON d.id = pl.dealer_id
+               WHERE pl.status = 'active' AND d.is_demo = 0
+               ORDER BY pl.created_at DESC
+               LIMIT 100`
+            )
+            .all<any>();
 
       let results = rows.results || [];
 
@@ -1242,24 +1259,39 @@ export default {
       // DISTINCT porque um match múltiplo em alternativas não deve
       // duplicar a linha da peça.
       const searchTextLower = `%${ref.trim().toLowerCase()}%`;
-      const rows = await env.DB
-        .prepare(
-          `SELECT DISTINCT
-             pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
-             d.company_name, d.phone, d.city, d.postal_code, d.verified,
-             ${requesterId ? "d.email," : "NULL AS email,"}
-             (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
-             (SELECT GROUP_CONCAT(lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
-           FROM parts_listings pl
-           JOIN dealers d ON d.id = pl.dealer_id
-           LEFT JOIN listing_alt_references alt ON alt.listing_id = pl.id
-           WHERE (pl.reference_normalized LIKE ? OR alt.reference_normalized LIKE ? OR lower(pl.description) LIKE ?)
-             AND pl.status = 'active' AND d.is_demo = 0
-           ORDER BY pl.created_at DESC
-           LIMIT 50`
-        )
-        .bind(`%${refNormalized}%`, `%${refNormalized}%`, searchTextLower)
-        .all();
+      const rows = requesterId
+        ? await env.DB
+            .prepare(
+              `SELECT DISTINCT
+                 pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.notes, pl.created_at,
+                 d.company_name, d.phone, d.email, d.city, d.postal_code, d.verified,
+                 (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references,
+                 (SELECT GROUP_CONCAT(lp.url || ':::' || COALESCE(lp.thumb_url, lp.url), '|||') FROM listing_photos lp WHERE lp.listing_id = pl.id) AS photos_data
+               FROM parts_listings pl
+               JOIN dealers d ON d.id = pl.dealer_id
+               LEFT JOIN listing_alt_references alt ON alt.listing_id = pl.id
+               WHERE (pl.reference_normalized LIKE ? OR alt.reference_normalized LIKE ? OR lower(pl.description) LIKE ?)
+                 AND pl.status = 'active' AND d.is_demo = 0
+               ORDER BY pl.created_at DESC
+               LIMIT 50`
+            )
+            .bind(`%${refNormalized}%`, `%${refNormalized}%`, searchTextLower)
+            .all()
+        : await env.DB
+            .prepare(
+              `SELECT DISTINCT
+                 pl.id, pl.reference, pl.description, pl.quantity, pl.brand, pl.created_at,
+                 (SELECT GROUP_CONCAT(lar.reference, ', ') FROM listing_alt_references lar WHERE lar.listing_id = pl.id) AS alt_references
+               FROM parts_listings pl
+               JOIN dealers d ON d.id = pl.dealer_id
+               LEFT JOIN listing_alt_references alt ON alt.listing_id = pl.id
+               WHERE (pl.reference_normalized LIKE ? OR alt.reference_normalized LIKE ? OR lower(pl.description) LIKE ?)
+                 AND pl.status = 'active' AND d.is_demo = 0
+               ORDER BY pl.created_at DESC
+               LIMIT 50`
+            )
+            .bind(`%${refNormalized}%`, `%${refNormalized}%`, searchTextLower)
+            .all();
 
       return json({ results: rows.results || [] });
     }
