@@ -651,6 +651,7 @@
   </div>
 
   <div id="map-area" style="display: none;">
+    <div id="map-locked-message" style="display: none;"></div>
     <div id="map" class="map-container"></div>
     <div class="hint map-hint">Só concessionários com peças ativas e localização conhecida aparecem no mapa.</div>
   </div>
@@ -1049,7 +1050,12 @@ async function loadAllListings() {
     const url = (myDealerId && preferDistanceSort)
       ? `${API_BASE}/api/listings/browse?fromDealerId=${myDealerId}`
       : `${API_BASE}/api/listings/browse`;
-    const res = await fetch(url);
+    // Envia o token sempre que existir -- sem isto, o backend nunca
+    // detetava sessão nesta chamada (optionalDealerId() só encontra
+    // sessão se o cabeçalho Authorization vier no pedido), e devolvia
+    // sempre a versão pública/reduzida (sem contactos), mesmo estando
+    // autenticado.
+    const res = await fetch(url, sessionToken ? { headers: { authorization: `Bearer ${sessionToken}` } } : undefined);
     const data = await res.json();
     if (!res.ok) {
       resultsArea.innerHTML = `<div class="status-line">${data.error || "Não foi possível carregar."}</div>`;
@@ -1109,22 +1115,40 @@ btnViewList.addEventListener("click", () => {
 });
 
 btnViewMap.addEventListener("click", () => {
+  const lockedMsg = document.getElementById("map-locked-message");
+  const mapContainer = document.getElementById("map");
+  const mapHint = document.querySelector(".map-hint");
+
   if (!sessionToken) {
     // Sem sessão, o mapa fica indisponível de propósito -- mostra
     // localizações exatas de concessionários, informação sensível
     // demais para ficar acessível a qualquer visitante anónimo (ver
     // decisão semelhante já aplicada às rotas de pesquisa).
-    resultsArea.innerHTML = `
+    //
+    // Usa um elemento próprio (map-locked-message), sem tocar no
+    // resto de mapArea -- versões anteriores sobrescreviam
+    // resultsArea ou mapArea inteiros, o que ou destruía a lista já
+    // carregada, ou apagava a <div id="map"> que o Leaflet precisa
+    // de encontrar mais tarde, se a pessoa fizer login sem recarregar
+    // a página.
+    btnViewMap.classList.add("active");
+    btnViewList.classList.remove("active");
+    resultsArea.style.display = "none";
+    mapArea.style.display = "block";
+    mapContainer.style.display = "none";
+    if (mapHint) mapHint.style.display = "none";
+    lockedMsg.style.display = "block";
+    lockedMsg.innerHTML = `
       <div class="empty-state">
         🔒 O mapa da rede fica disponível depois de criares conta.<br>
         <a href="conta.html" style="color: var(--hero-accent); font-weight: 700;">Regista o teu concessionário →</a>
       </div>`;
-    resultsArea.style.display = "block";
-    mapArea.style.display = "none";
-    btnViewMap.classList.remove("active");
-    btnViewList.classList.add("active");
     return;
   }
+
+  lockedMsg.style.display = "none";
+  mapContainer.style.display = "";
+  if (mapHint) mapHint.style.display = "";
 
   btnViewMap.classList.add("active");
   btnViewList.classList.remove("active");
@@ -1202,7 +1226,10 @@ async function runSearch() {
   resultsArea.innerHTML = '<div class="status-line">A procurar…</div>';
 
   try {
-    const res = await fetch(`${API_BASE}/api/listings/search?ref=${encodeURIComponent(ref)}`);
+    const res = await fetch(
+      `${API_BASE}/api/listings/search?ref=${encodeURIComponent(ref)}`,
+      sessionToken ? { headers: { authorization: `Bearer ${sessionToken}` } } : undefined
+    );
     const data = await res.json();
 
     if (!res.ok) {
