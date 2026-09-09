@@ -147,13 +147,12 @@
     position: relative; z-index: 1; padding: 0 1.5rem; margin-top: 1.5rem;
     transition: margin-top 0.35s ease;
   }
-  /* Garante que abrir o cartão "empurra" visivelmente o resto do hero
-     para baixo -- sem isto, .hero-inner (mais alto que o cartão, mesmo
-     aberto) "ganhava" a corrida de altura no flex, e o resto da página
-     mal se mexia ao abrir/fechar. */
-  .hero:has(.why-card-header[aria-expanded="true"]) .hero-below-layout {
-    margin-top: 3rem;
-  }
+  /* O empurrão extra ao abrir o cartão é calculado em JS (ver
+     applyWhyCardPush()), não com um valor CSS fixo -- as tentativas
+     anteriores com :has() + margin-top fixo (8rem, depois 4rem, depois
+     3rem) nunca acertavam bem, porque a altura real do texto varia
+     consoante a largura do ecrã e não há forma de a prever em CSS
+     puro sem medir o DOM real. */
 
   /* Entrada em cascata -- cada elemento aparece com um pequeno atraso
      sobre o anterior, movimento subtil de baixo para cima. Só corre
@@ -926,7 +925,49 @@ if (whyCardToggle) {
   whyCardToggle.addEventListener("click", () => {
     const isOpen = whyCardToggle.getAttribute("aria-expanded") === "true";
     whyCardToggle.setAttribute("aria-expanded", String(!isOpen));
+    // A transição do max-height demora 0.35s (ver .why-card-body) --
+    // medir a altura antes disso apanhava um valor a meio da
+    // animação, não o final. setTimeout com a mesma duração garante
+    // que se mede o estado já estabilizado.
+    setTimeout(applyWhyCardPush, 360);
   });
+}
+
+/**
+ * Calcula, a partir do DOM real (não de um valor CSS estimado à
+ * mão), quanto o resto do hero precisa de descer para o cartão
+ * "empurrar" visivelmente, sem exagerar nem ficar imperceptível.
+ *
+ * Dentro do flex .hero-layout, a altura da linha é definida pelo
+ * item mais alto -- se .hero-inner já for mais alto que o cartão
+ * aberto, abrir/fechar nunca muda a altura visível do container
+ * (era o bug original: "empurra muito pouco"). Aqui, mede-se a
+ * diferença real entre a altura do cartão aberto e a altura de
+ * .hero-inner, e só se aplica margem extra pelo que realmente falta
+ * -- nunca um valor fixo adivinhado (tentativas anteriores com
+ * margin-top fixo em CSS nunca acertavam, por não saberem a altura
+ * real do texto renderizado).
+ */
+function applyWhyCardPush() {
+  const heroInner = document.querySelector(".hero-inner");
+  const whyCard = document.getElementById("why-card");
+  const belowLayout = document.querySelector(".hero-below-layout");
+  if (!heroInner || !whyCard || !belowLayout) return;
+
+  const isOpen = whyCardToggle.getAttribute("aria-expanded") === "true";
+  if (!isOpen) {
+    belowLayout.style.marginTop = "";
+    return;
+  }
+
+  const heroInnerHeight = heroInner.offsetHeight;
+  const whyCardHeight = whyCard.offsetHeight; // já reflete a altura aberta, a transição CSS está a decorrer mas offsetHeight dá o valor final de destino
+  const excess = whyCardHeight - heroInnerHeight;
+
+  // Só empurra a mais se o cartão aberto for mesmo mais alto do que
+  // o texto -- caso contrário, o flex já trata disto sozinho, sem
+  // precisar de ajuda.
+  belowLayout.style.marginTop = excess > 0 ? `calc(1.5rem + ${excess}px)` : "";
 }
 
 // ---------- banner de modo de demonstração ----------
