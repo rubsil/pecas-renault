@@ -133,7 +133,11 @@
   @media (prefers-reduced-motion: reduce) {
     .hero-refs-pattern { animation: none; transform: rotate(-3deg) scale(1.15); opacity: 0.05; }
   }
-  .hero-inner { position: relative; z-index: 1; padding: 0 1.5rem; }
+  .hero-layout {
+    position: relative; z-index: 1; display: flex; align-items: center;
+    gap: 2.5rem; padding: 0 1.5rem;
+  }
+  .hero-inner { flex: 1 1 auto; min-width: 0; }
 
   /* Entrada em cascata -- cada elemento aparece com um pequeno atraso
      sobre o anterior, movimento subtil de baixo para cima. Só corre
@@ -201,12 +205,24 @@
   .hero-register-cta a:hover .cta-arrow { transform: translateX(4px); }
 
   /* ---------- "Porque existe isto" (cartão fixo, canto superior direito) ---------- */
+  /* Como item de flex ao lado de .hero-inner, o cartão fica
+     naturalmente centrado verticalmente com align-items: center do
+     pai (.hero-layout) -- sem cálculos de posição absoluta, que se
+     desalinhavam quando o cartão expandia (a altura crescia a partir
+     de um "centro" fixo calculado antes de abrir, ficando
+     descentrado depois). Escondido por defeito em ecrãs estreitos
+     (a media query abaixo só o mostra a partir de 760px), e também
+     controlado via JS (display none/flex consoante haja sessão). */
   .why-card {
-    position: absolute; top: 1.5rem; right: 1.5rem; z-index: 2; width: min(420px, calc(100% - 3rem));
+    display: none;
+    flex: 0 0 auto; width: min(380px, 100%);
     background: var(--paper-raised); border: 1px solid var(--line); border-left: 3px solid var(--hero-accent);
     border-radius: var(--radius); box-shadow: 0 6px 18px rgba(26,29,26,0.08);
     opacity: 0; animation: heroFadeUpIn 0.55s ease forwards; animation-delay: 0.55s;
     transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  @media (min-width: 760px) {
+    .why-card.show-why-card { display: block; }
   }
   /* Leve "glow" na borda quando aberto -- único toque de cor extra,
      sem exagerar (só a sombra/borda reage, não o cartão inteiro). */
@@ -710,75 +726,82 @@
     8200123456&nbsp;&nbsp;&nbsp;284B26838R&nbsp;&nbsp;&nbsp;231A02188R&nbsp;&nbsp;&nbsp;7703062062&nbsp;&nbsp;&nbsp;8200654321&nbsp;&nbsp;&nbsp;82A0011122&nbsp;&nbsp;&nbsp;8200123456&nbsp;&nbsp;&nbsp;284B26838R<br>
     284B15713R&nbsp;&nbsp;&nbsp;8200123456&nbsp;&nbsp;&nbsp;7703062062&nbsp;&nbsp;&nbsp;231A02188R&nbsp;&nbsp;&nbsp;82A0011122&nbsp;&nbsp;&nbsp;8200654321&nbsp;&nbsp;&nbsp;284B15713R&nbsp;&nbsp;&nbsp;8200123456
   </div>
-  <div class="hero-inner">
-    <div class="hero-eyebrow">Rede Renault &amp; Dacia · Portugal</div>
-    <h1 class="hero-title">Peças paradas num concessionário.<br>Precisas <span class="hero-title-accent">noutro.</span></h1>
-    <p class="hero-sub">Vê que concessionários têm essa peça parada em stock, antes de encomendar peça nova.</p>
-    <div class="hero-meta" id="hero-meta">
-      <div><div class="hero-meta-value" id="hero-meta-dealers">—</div><div class="hero-meta-label">concessionários registados</div></div>
-      <div><div class="hero-meta-value" id="hero-meta-listings">—</div><div class="hero-meta-label">peças publicadas</div></div>
-      <div><div class="hero-meta-value">100%</div><div class="hero-meta-label">gratuito, sem intermediários</div></div>
-    </div>
 
-    <div class="hero-how-it-works" id="hero-how-it-works" style="display: none;">
-      <div class="hiw-step">
-        <div class="hiw-step-num">1</div>
-        <div class="hiw-step-text"><strong>Publica</strong> as peças sem rotatividade que tens em stock.</div>
+  <!-- .hero-layout organiza o conteúdo principal e o cartão lado a
+       lado com flexbox real, em vez de posicionamento absoluto --
+       mais robusto: o cartão fica naturalmente alinhado ao centro
+       vertical do conteúdo (align-items: center), sem cálculos de
+       posição frágeis que se desalinham quando o cartão expande. -->
+  <div class="hero-layout">
+    <div class="hero-inner">
+      <div class="hero-eyebrow">Rede Renault &amp; Dacia · Portugal</div>
+      <h1 class="hero-title">Peças paradas num concessionário.<br>Precisas <span class="hero-title-accent">noutro.</span></h1>
+      <p class="hero-sub">Vê que concessionários têm essa peça parada em stock, antes de encomendar peça nova.</p>
+      <div class="hero-meta" id="hero-meta">
+        <div><div class="hero-meta-value" id="hero-meta-dealers">—</div><div class="hero-meta-label">concessionários registados</div></div>
+        <div><div class="hero-meta-value" id="hero-meta-listings">—</div><div class="hero-meta-label">peças publicadas</div></div>
+        <div><div class="hero-meta-value">100%</div><div class="hero-meta-label">gratuito, sem intermediários</div></div>
       </div>
-      <div class="hiw-step">
-        <div class="hiw-step-num">2</div>
-        <div class="hiw-step-text"><strong>Procura</strong> pela referência que precisas, antes de encomendar peça nova.</div>
+
+      <div class="hero-how-it-works" id="hero-how-it-works" style="display: none;">
+        <div class="hiw-step">
+          <div class="hiw-step-num">1</div>
+          <div class="hiw-step-text"><strong>Publica</strong> as peças sem rotatividade que tens em stock.</div>
+        </div>
+        <div class="hiw-step">
+          <div class="hiw-step-num">2</div>
+          <div class="hiw-step-text"><strong>Procura</strong> pela referência que precisas, antes de encomendar peça nova.</div>
+        </div>
+        <div class="hiw-step">
+          <div class="hiw-step-num">3</div>
+          <div class="hiw-step-text"><strong>Contacta</strong> diretamente quem tiver a peça, sem intermediários.</div>
+        </div>
       </div>
-      <div class="hiw-step">
-        <div class="hiw-step-num">3</div>
-        <div class="hiw-step-text"><strong>Contacta</strong> diretamente quem tiver a peça, sem intermediários.</div>
+
+      <div class="search-row">
+        <input type="text" id="ref-input" placeholder="ex: 8200123456 ou 'amortecedor'" autocomplete="off" />
+        <button id="search-btn">Procurar</button>
+      </div>
+
+      <p class="hero-register-cta" id="hero-register-cta" style="display: none;">
+        Já és concessionário Renault ou Dacia? <a href="conta.html">Regista a tua conta gratuitamente <span class="cta-arrow">→</span></a>
+      </p>
+
+      <!-- Em ecrãs estreitos não há espaço vazio para o cartão --
+           a mesma informação fica sempre visível aqui, sem a mecânica
+           de expandir/recolher (que só faz sentido para poupar espaço
+           em ecrãs largos). -->
+      <div class="why-inline" id="why-inline" style="display: none;">
+        <p class="why-text">
+          <strong>Porque existe isto:</strong> às vezes encomenda-se peça a mais, ou a peça errada — e a Renault
+          não aceita devolução. Essa peça fica parada no stock, à espera de um cliente que pode nunca aparecer.
+          Só que noutro local, alguém pode estar mesmo a precisar dela agora.
+        </p>
+        <p class="why-disclaimer">
+          Projeto independente — sem ligação oficial à Renault ou Dacia.
+        </p>
       </div>
     </div>
 
-    <div class="search-row">
-      <input type="text" id="ref-input" placeholder="ex: 8200123456 ou 'amortecedor'" autocomplete="off" />
-      <button id="search-btn">Procurar</button>
-    </div>
-
-    <p class="hero-register-cta" id="hero-register-cta" style="display: none;">
-      Já és concessionário Renault ou Dacia? <a href="conta.html">Regista a tua conta gratuitamente <span class="cta-arrow">→</span></a>
-    </p>
-
-    <!-- Em ecrãs estreitos não há espaço vazio para o cartão flutuante
-         -- a mesma informação fica sempre visível aqui, sem a mecânica
-         de expandir/recolher (que só faz sentido para poupar espaço
-         em ecrãs largos). -->
-    <div class="why-inline" id="why-inline" style="display: none;">
-      <p class="why-text">
-        <strong>Porque existe isto:</strong> às vezes encomenda-se peça a mais, ou a peça errada — e a Renault
-        não aceita devolução. Essa peça fica parada no stock, à espera de um cliente que pode nunca aparecer.
-        Só que noutro local, alguém pode estar mesmo a precisar dela agora.
-      </p>
-      <p class="why-disclaimer">
-        Projeto independente, criado por um concessionário para a rede — sem ligação oficial à Renault ou Dacia.
-      </p>
-    </div>
-  </div>
-
-  <!-- Cartão sempre visível pelo cabeçalho, com o texto a expandir ao
-       clicar -- combina presença visual permanente com a
-       interatividade de um "revelar". Só aparece em ecrãs largos,
-       onde há espaço vazio real à direita do título; sem sessão. -->
-  <div class="why-card" id="why-card" style="display: none;">
-    <button type="button" class="why-card-header" id="why-card-toggle" aria-expanded="false">
-      <span class="why-card-icon">?</span>
-      <h2 class="why-card-title">Porque existe isto</h2>
-      <span class="why-card-chevron">▾</span>
-    </button>
-    <div class="why-card-body">
-      <p class="why-text">
-        Às vezes encomenda-se peça a mais, ou a peça errada — e a Renault não aceita devolução.
-        Essa peça fica parada no stock, à espera de um cliente que pode nunca aparecer.
-        Só que noutro local, alguém pode estar mesmo a precisar dela agora.
-      </p>
-      <p class="why-disclaimer">
-        Projeto independente, criado por um concessionário para a rede — sem ligação oficial à Renault ou Dacia.
-      </p>
+    <!-- Cartão sempre visível pelo cabeçalho, com o texto a expandir
+         ao clicar. Só aparece em ecrãs largos (a própria regra flex
+         esconde-o em ecrãs estreitos, ver CSS) e sem sessão. -->
+    <div class="why-card" id="why-card">
+      <button type="button" class="why-card-header" id="why-card-toggle" aria-expanded="false">
+        <span class="why-card-icon">?</span>
+        <h2 class="why-card-title">Porque existe isto</h2>
+        <span class="why-card-chevron">▾</span>
+      </button>
+      <div class="why-card-body">
+        <p class="why-text">
+          Às vezes encomenda-se peça a mais, ou a peça errada — e a Renault não aceita devolução.
+          Essa peça fica parada no stock, à espera de um cliente que pode nunca aparecer.
+          Só que noutro local, alguém pode estar mesmo a precisar dela agora.
+        </p>
+        <p class="why-disclaimer">
+          Projeto independente — sem ligação oficial à Renault ou Dacia.
+        </p>
+      </div>
     </div>
   </div>
 </div>
@@ -1530,7 +1553,11 @@ if (sessionToken) {
   // quem já tem conta não precisa de ver sempre.
   document.getElementById("hero-how-it-works").style.display = "flex";
   document.getElementById("hero-register-cta").style.display = "block";
-  document.getElementById("why-card").style.display = "block";
+  // Classe em vez de style.display direto -- a media query no CSS já
+  // trata de "só em ecrãs largos" (.show-why-card só tem display:block
+  // a partir de 760px); aqui só precisamos de dizer "sem sessão, dá
+  // para mostrar", sem entrar em conflito com essa regra.
+  document.getElementById("why-card").classList.add("show-why-card");
   document.getElementById("why-inline").style.display = "block";
 
   // "Mostrar miniaturas de fotos" não tem efeito nenhum sem sessão --
