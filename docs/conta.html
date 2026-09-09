@@ -776,6 +776,7 @@ function showPasswordProposalModal(isFirstEverLogin) {
       <div class="password-proposal-actions">
         <button type="button" id="btn-save-proposal-password" class="submit">Guardar password</button>
         <button type="button" id="btn-skip-proposal-password" class="password-proposal-skip">Ignorar e usar código na próxima</button>
+        <button type="button" id="btn-never-proposal-password" class="password-proposal-skip">Não mostrar esta sugestão outra vez</button>
       </div>
     </div>
   `;
@@ -784,6 +785,21 @@ function showPasswordProposalModal(isFirstEverLogin) {
   const closeModal = () => overlay.remove();
 
   document.getElementById("btn-skip-proposal-password").addEventListener("click", closeModal);
+
+  document.getElementById("btn-never-proposal-password").addEventListener("click", async () => {
+    const token = localStorage.getItem("pt_session");
+    try {
+      await fetch(`${API_BASE}/api/dealers/me/dismiss-password-proposal`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      // Falha silenciosa -- não vale a pena incomodar a pessoa com um
+      // erro aqui; o pior cenário é voltar a ver a sugestão da
+      // próxima vez, o que já era o comportamento antes desta opção.
+    }
+    closeModal();
+  });
 
   document.getElementById("btn-save-proposal-password").addEventListener("click", async () => {
     const password = document.getElementById("proposal-password").value;
@@ -1381,15 +1397,16 @@ async function loadDashboard() {
     renderPasswordCard(meData.dealer);
 
     // Propõe definir password só depois de um login por código
-    // (não por password, nem no login demo) e só se a conta ainda
-    // não tiver uma definida -- sessionStorage garante que isto só
-    // acontece uma vez por sessão de browser, não a cada
-    // loadDashboard() (que também corre, por exemplo, ao voltar de
-    // outra aba). O valor "register" identifica quem acabou de se
-    // registar agora mesmo, para o modal ajustar o texto de
+    // (não por password, nem no login demo), só se a conta ainda não
+    // tiver uma definida, e só se a pessoa não tiver já dito para não
+    // voltar a mostrar (dismissed_password_proposal). sessionStorage
+    // garante que isto só acontece uma vez por sessão de browser, não
+    // a cada loadDashboard() (que também corre, por exemplo, ao
+    // voltar de outra aba). O valor "register" identifica quem acabou
+    // de se registar agora mesmo, para o modal ajustar o texto de
     // boas-vindas; "true" é o login normal por código.
     const loginMethod = sessionStorage.getItem("logged_in_via_code");
-    if (loginMethod && !meData.dealer.has_password) {
+    if (loginMethod && !meData.dealer.has_password && meData.dealer.dismissed_password_proposal !== 1) {
       sessionStorage.removeItem("logged_in_via_code");
       showPasswordProposalModal(loginMethod === "register");
     }
@@ -1519,8 +1536,27 @@ function renderPasswordCard(dealer) {
       <label for="new-password-confirm">Repetir password</label>
       <input type="password" id="new-password-confirm" autocomplete="new-password" />
       <button type="button" id="btn-change-password" class="contact-edit-save">Definir password</button>
+      ${dealer.dismissed_password_proposal !== 1 ? `
+        <p class="hint" style="margin-top: 0.75rem;">
+          <a href="#" id="btn-dismiss-proposal-here" style="color: var(--ink-faint);">Não voltar a sugerir isto depois de eu entrar por código</a>
+        </p>
+      ` : ""}
       <div class="message" id="password-card-message"></div>
     `;
+  }
+
+  const dismissLink = document.getElementById("btn-dismiss-proposal-here");
+  if (dismissLink) {
+    dismissLink.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const token = localStorage.getItem("pt_session");
+      await fetch(`${API_BASE}/api/dealers/me/dismiss-password-proposal`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      dealer.dismissed_password_proposal = 1;
+      renderPasswordCard(dealer);
+    });
   }
 
   document.getElementById("btn-change-password").addEventListener("click", async () => {

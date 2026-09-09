@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS dealers (
   pref_default_view TEXT DEFAULT 'list',    -- 'list' | 'map'
   pref_alert_notifications INTEGER DEFAULT 1, -- receber email quando um alerta próprio ficar satisfeito
   password_hash TEXT,                       -- hash PBKDF2, NULL = login só por código de email
-  password_salt TEXT
+  password_salt TEXT,
+  dismissed_password_proposal INTEGER DEFAULT 0 -- 1 = já disse "não voltar a mostrar" a proposta de password
 );
 
 CREATE INDEX IF NOT EXISTS idx_dealers_phone ON dealers(phone_normalized);

@@ -13,6 +13,7 @@
 //   PATCH /api/dealers/me/contact-name — atualiza a própria pessoa de contacto
 //   PATCH /api/dealers/me/password    — define/muda a própria password (login por password é sempre opcional)
 //   DELETE /api/dealers/me/password   — remove a própria password (volta a exigir sempre código por email)
+//   POST /api/dealers/me/dismiss-password-proposal — deixa de mostrar a sugestão de definir password
 //
 //   POST /api/listings                — publica peça (autenticado)
 //   PATCH /api/listings/:id           — atualiza estado (sold/removed) (autenticado, dono)
@@ -191,7 +192,10 @@ async function resetDemoAccount(db: D1Database): Promise<void> {
          pref_compact_list = 0,
          pref_sort_order = 'recent',
          pref_default_view = 'list',
-         pref_alert_notifications = 1
+         pref_alert_notifications = 1,
+         password_hash = NULL,
+         password_salt = NULL,
+         dismissed_password_proposal = 0
        WHERE id = ?`
     )
     .bind(DEMO_DEALER_ID)
@@ -781,7 +785,7 @@ export default {
         .prepare(
           `SELECT id, company_name, contact_name, phone, email, address, postal_code, city, verified, is_demo,
                   pref_photo_thumbnails, pref_compact_list, pref_sort_order, pref_default_view, pref_alert_notifications,
-                  (password_hash IS NOT NULL) AS has_password
+                  (password_hash IS NOT NULL) AS has_password, dismissed_password_proposal
            FROM dealers WHERE id = ?`
         )
         .bind(dealerIdOrResponse)
@@ -910,6 +914,19 @@ export default {
         .run();
 
       return json({ message: "Password removida. A partir de agora, entra sempre com o código por email." });
+    }
+
+    // ---------- deixar de mostrar a proposta de definir password ----------
+    if (path === "/api/dealers/me/dismiss-password-proposal" && request.method === "POST") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+
+      await env.DB
+        .prepare("UPDATE dealers SET dismissed_password_proposal = 1 WHERE id = ?")
+        .bind(dealerIdOrResponse)
+        .run();
+
+      return json({ message: "Não voltamos a mostrar esta sugestão." });
     }
 
     // ---------- publicar peça ----------
