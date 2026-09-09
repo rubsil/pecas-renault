@@ -6,15 +6,19 @@
 //   GET  /api/dealers/suggest?q=...   — sugestões de nome (lista oficial), para autocomplete
 //   POST /api/auth/request-code       — pede código de login (magic link)
 //   POST /api/auth/redeem-code        — troca código por sessão
+//   POST /api/auth/login-password     — login por password (alternativa opcional ao código de email)
 //   GET  /api/dealers/me              — dados do concessionário autenticado
 //   PATCH /api/dealers/me/preferences — atualiza as próprias preferências de visualização
 //   PATCH /api/dealers/me/phone       — atualiza o próprio telefone de contacto
 //   PATCH /api/dealers/me/contact-name — atualiza a própria pessoa de contacto
+//   PATCH /api/dealers/me/password    — define/muda a própria password (login por password é sempre opcional)
+//   DELETE /api/dealers/me/password   — remove a própria password (volta a exigir sempre código por email)
 //
 //   POST /api/listings                — publica peça (autenticado)
 //   PATCH /api/listings/:id           — atualiza estado (sold/removed) (autenticado, dono)
 //   GET  /api/listings/browse         — lista todas as peças ativas (sem pesquisa)
 //   GET  /api/listings/map            — concessionários com peças ativas, agrupados, com coordenadas
+//   GET  /api/auth/check-password-status — se uma conta (telefone+email) tem password definida
 //   GET  /api/settings/registration-status — se há password de registo definida (sem revelar o valor)
 //   GET  /api/stats/public              — contagem pública de concessionários na lista oficial (para o hero)
 //   POST /api/auth/demo-login         — entra direto na conta de demonstração (sem código de email)
@@ -50,6 +54,7 @@
 //   DELETE /api/admin/dealers/:id           — elimina um concessionário e as suas peças
 //   POST   /api/admin/dealers/:id/resend-confirmation — reenvia código de confirmação de email
 //   POST   /api/admin/dealers/:id/reset-rate-limit — repõe o limite de pedidos de código de login
+//   POST   /api/admin/dealers/:id/reset-password — remove a password de uma conta (nunca a vê, só a limpa)
 //   POST   /api/admin/dealers/:id/geocode  — geocodifica a morada do concessionário (lat/lon)
 //   GET    /api/admin/listings              — lista todas as peças (qualquer estado)
 //   PATCH  /api/admin/listings/:id          — edita qualquer peça
@@ -65,6 +70,7 @@ import { createLoginCode, redeemLoginCode, resolveSession, randomToken } from ".
 import { checkAdminAuth } from "./admin";
 import { geocodeAddress, distanceKm, sleep } from "./geocoding";
 import { sendEmail, buildVerificationEmailBody, gmailConfigured, getAccessToken } from "./email";
+import { hashPassword, verifyPassword } from "./password";
 
 export interface Env {
   DB: D1Database;
@@ -402,6 +408,27 @@ export default {
 
     // ---------- registo ----------
     // ---------- se há password de registo definida (sem revelar o valor) ----------
+    // ---------- verifica se uma conta tem password definida (sem revelar mais nada) ----------
+    // Usada no ecrã de login: se a conta identificada por
+    // telefone+email tiver password, mostra o campo; caso contrário,
+    // ou se a conta não existir, mantém só a opção de código por
+    // email -- nunca confirma explicitamente se a conta existe, para
+    // não ajudar quem tentasse enumerar contas reais.
+    if (path === "/api/auth/check-password-status" && request.method === "GET") {
+      const phone = url.searchParams.get("phone") || "";
+      const email = url.searchParams.get("email") || "";
+      if (!phone || !email) return json({ hasPassword: false });
+
+      const phoneNormalized = normalizePhone(phone);
+      const emailNormalized = email.trim().toLowerCase();
+      const dealer = await env.DB
+        .prepare("SELECT password_hash FROM dealers WHERE phone_normalized = ? AND lower(email) = ?")
+        .bind(phoneNormalized, emailNormalized)
+        .first<{ password_hash: string | null }>();
+
+      return json({ hasPassword: !!dealer?.password_hash });
+    }
+
     if (path === "/api/settings/registration-status" && request.method === "GET") {
       const registrationPassword = await env.DB
         .prepare("SELECT value FROM settings WHERE key = 'registration_password'")
@@ -658,6 +685,48 @@ export default {
       return json({ sessionToken });
     }
 
+    // ---------- login por password (alternativa opcional ao código de email) ----------
+    if (path === "/api/auth/login-password" && request.method === "POST") {
+      const body = await request.json<any>().catch(() => null);
+      if (!body?.phone || !body?.email || !body?.password) {
+        return json({ error: "Telefone, email e password são obrigatórios." }, { status: 400 });
+      }
+
+      const phoneNormalized = normalizePhone(body.phone);
+      const emailNormalized = String(body.email).trim().toLowerCase();
+      const dealer = await env.DB
+        .prepare(
+          "SELECT id, password_hash, password_salt FROM dealers WHERE phone_normalized = ? AND lower(email) = ?"
+        )
+        .bind(phoneNormalized, emailNormalized)
+        .first<{ id: number; password_hash: string | null; password_salt: string | null }>();
+
+      // Mensagem de erro igual quer a conta exista ou não, e quer
+      // tenha password definida ou não -- evita confirmar a um
+      // atacante se um telefone/email combina com alguma conta real
+      // (informação que ajudaria a direcionar tentativas de força
+      // bruta a contas que sabe existirem).
+      const genericError = { error: "Telefone, email ou password incorretos." };
+
+      if (!dealer || !dealer.password_hash || !dealer.password_salt) {
+        return json(genericError, { status: 401 });
+      }
+
+      const passwordOk = await verifyPassword(body.password, dealer.password_hash, dealer.password_salt);
+      if (!passwordOk) {
+        return json(genericError, { status: 401 });
+      }
+
+      const sessionToken = randomToken();
+      const sessionExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await env.DB
+        .prepare("UPDATE dealers SET login_token = ?, login_token_expires_at = ?, last_login_at = datetime('now') WHERE id = ?")
+        .bind(sessionToken, sessionExpiry, dealer.id)
+        .run();
+
+      return json({ sessionToken });
+    }
+
     // ---------- login direto na conta de demonstração ----------
     // Sem código de email -- reconhece só telefone "demo" + email
     // "modo@demo" (case-insensitive no email, para tolerar erro de
@@ -710,7 +779,8 @@ export default {
       const dealer = await env.DB
         .prepare(
           `SELECT id, company_name, contact_name, phone, email, address, postal_code, city, verified, is_demo,
-                  pref_photo_thumbnails, pref_compact_list, pref_sort_order, pref_default_view, pref_alert_notifications
+                  pref_photo_thumbnails, pref_compact_list, pref_sort_order, pref_default_view, pref_alert_notifications,
+                  (password_hash IS NOT NULL) AS has_password
            FROM dealers WHERE id = ?`
         )
         .bind(dealerIdOrResponse)
@@ -807,6 +877,38 @@ export default {
         .run();
 
       return json({ message: "Pessoa de contacto atualizada." });
+    }
+
+    // ---------- definir/mudar a própria password (login por password é sempre opcional) ----------
+    if (path === "/api/dealers/me/password" && request.method === "PATCH") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+
+      const body = await request.json<any>().catch(() => null);
+      if (typeof body?.password !== "string" || body.password.length < 8) {
+        return json({ error: "A password deve ter pelo menos 8 caracteres." }, { status: 400 });
+      }
+
+      const { hash, salt } = await hashPassword(body.password);
+      await env.DB
+        .prepare("UPDATE dealers SET password_hash = ?, password_salt = ? WHERE id = ?")
+        .bind(hash, salt, dealerIdOrResponse)
+        .run();
+
+      return json({ message: "Password definida. Já podes entrar com ela da próxima vez, ou continuar a usar o código por email." });
+    }
+
+    // ---------- remover a própria password (volta a exigir sempre código por email) ----------
+    if (path === "/api/dealers/me/password" && request.method === "DELETE") {
+      const dealerIdOrResponse = await requireDealer(request, env);
+      if (dealerIdOrResponse instanceof Response) return dealerIdOrResponse;
+
+      await env.DB
+        .prepare("UPDATE dealers SET password_hash = NULL, password_salt = NULL WHERE id = ?")
+        .bind(dealerIdOrResponse)
+        .run();
+
+      return json({ message: "Password removida. A partir de agora, entra sempre com o código por email." });
     }
 
     // ---------- publicar peça ----------
@@ -1636,6 +1738,7 @@ export default {
           `SELECT d.id, d.company_name, d.contact_name, d.phone, d.email, d.email_confirmed,
                   d.city, d.postal_code, d.verified, d.verified_at, d.verification_method,
                   d.created_at, d.last_login_at, d.is_demo,
+                  (password_hash IS NOT NULL) AS has_password,
                   (SELECT COUNT(*) FROM parts_listings pl WHERE pl.dealer_id = d.id AND pl.status = 'active') AS active_listings_count
            FROM dealers d ORDER BY d.is_demo DESC, d.created_at DESC`
         )
@@ -1850,6 +1953,21 @@ export default {
         .run();
 
       return json({ message: "Limite de pedidos de código reposto para esta conta." });
+    }
+
+    // ---------- repor (limpar) a password de um concessionário ----------
+    // O admin nunca vê a password em si -- só pode forçar a conta a
+    // voltar a exigir código por email, e a pessoa define uma nova
+    // password se quiser, a partir daí.
+    const resetPasswordMatch = path.match(/^\/api\/admin\/dealers\/(\d+)\/reset-password$/);
+    if (resetPasswordMatch && request.method === "POST") {
+      const dealerId = Number(resetPasswordMatch[1]);
+      await env.DB
+        .prepare("UPDATE dealers SET password_hash = NULL, password_salt = NULL WHERE id = ?")
+        .bind(dealerId)
+        .run();
+
+      return json({ message: "Password removida. A conta volta a exigir código por email para entrar." });
     }
 
     // ---------- geocodificar a morada de um concessionário ----------

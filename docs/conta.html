@@ -174,6 +174,45 @@
   }
   .contact-edit-save:hover { background: var(--hero-accent); }
 
+  .dash-password-card {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; font-size: 0.88rem;
+  }
+  .dash-password-card label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
+  .dash-password-card input {
+    width: 100%; max-width: 280px; padding: 0.5rem 0.7rem; font-size: 0.9rem;
+    border: 1px solid var(--line); border-radius: var(--radius); font-family: var(--sans);
+  }
+  .dash-password-card input:focus { outline: none; border-color: var(--hero-accent); }
+  .dash-password-title { font-size: 0.95rem; margin: 0; }
+  .password-card-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; margin-top: 1rem; }
+  .password-remove-btn {
+    background: none; border: none; color: var(--danger); font-size: 0.8rem; cursor: pointer;
+    text-decoration: underline; padding: 0;
+  }
+
+  .password-proposal-overlay {
+    position: fixed; inset: 0; z-index: 300; background: rgba(26, 29, 26, 0.6);
+    display: flex; align-items: center; justify-content: center; padding: 1.5rem;
+  }
+  .password-proposal-box {
+    background: var(--paper); border-radius: var(--radius); padding: 1.75rem 2rem;
+    max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto;
+  }
+  .password-proposal-box h3 { margin: 0 0 0.75rem; font-size: 1.1rem; }
+  .password-proposal-box p { margin: 0 0 1rem; font-size: 0.88rem; color: var(--ink-soft); line-height: 1.5; }
+  .password-proposal-box label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
+  .password-proposal-box input {
+    width: 100%; padding: 0.6rem 0.8rem; font-size: 0.95rem;
+    border: 1px solid var(--line); border-radius: var(--radius); font-family: var(--sans);
+  }
+  .password-proposal-box input:focus { outline: none; border-color: var(--hero-accent); }
+  .password-proposal-actions { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.25rem; }
+  .password-proposal-skip {
+    background: none; border: none; color: var(--ink-faint); font-size: 0.82rem; cursor: pointer;
+    text-decoration: underline; padding: 0.3rem 0;
+  }
+
   .alert-create-row { display: flex; gap: 0.5rem; }
   .alert-create-row input {
     flex: 1; padding: 0.55rem 0.7rem; font-size: 0.88rem; font-family: var(--mono);
@@ -393,8 +432,18 @@
         <label for="login-email">Email da conta</label>
         <input type="email" id="login-email" placeholder="pecas@exemplo.pt" />
         <div class="hint">Pedimos os dois porque alguns concessionários de uma mesma cadeia partilham o telefone da central.</div>
-        <div class="hint">Enviamos um código de acesso para este email.</div>
+
+        <div id="login-password-block" style="display: none;">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="A tua password" autocomplete="current-password" />
+          <p class="resend-code-hint">
+            <a href="#" id="btn-forgot-password">Esqueci a password, entrar por código de email</a>
+          </p>
+        </div>
+        <div id="login-no-password-hint" class="hint">Enviamos um código de acesso para este email.</div>
+
         <button class="submit" id="btn-request-code">Pedir código de verificação</button>
+        <button class="submit" id="btn-login-password" style="display: none;">Entrar</button>
       </div>
 
       <div id="login-step-code" style="display: none;">
@@ -480,6 +529,7 @@
         <span data-goto-tab="dash-alerts">alerta</span> para uma referência que precises.
       </p>
       <div class="dash-contact-card" id="dash-contact-card"></div>
+      <div class="dash-password-card" id="dash-password-card"></div>
     </div>
 
     <div class="panel" id="panel-dash-listings">
@@ -588,6 +638,162 @@ function attachPhoneMask(inputEl) {
 }
 attachPhoneMask(document.getElementById("login-phone"));
 attachPhoneMask(document.getElementById("reg-phone"));
+
+// ---------- verifica se a conta tem password definida ----------
+// Assim que telefone+email estiverem preenchidos, consulta o backend
+// (com um pequeno atraso, para não pedir a cada tecla) e mostra o
+// campo de password só se essa conta realmente tiver uma definida --
+// evita mostrar um campo que nunca vai funcionar para a maioria das
+// contas, que ainda usam só código por email.
+let checkPasswordTimeout = null;
+function schedulePasswordStatusCheck() {
+  clearTimeout(checkPasswordTimeout);
+  checkPasswordTimeout = setTimeout(checkPasswordStatus, 400);
+}
+
+async function checkPasswordStatus() {
+  const phone = document.getElementById("login-phone").value.trim();
+  const email = document.getElementById("login-email").value.trim();
+  const passwordBlock = document.getElementById("login-password-block");
+  const noPasswordHint = document.getElementById("login-no-password-hint");
+  const btnRequestCode = document.getElementById("btn-request-code");
+  const btnLoginPassword = document.getElementById("btn-login-password");
+
+  if (!phone || !email) {
+    passwordBlock.style.display = "none";
+    noPasswordHint.style.display = "";
+    btnRequestCode.style.display = "";
+    btnLoginPassword.style.display = "none";
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/check-password-status?phone=${encodeURIComponent(phone)}&email=${encodeURIComponent(email)}`);
+    const data = await res.json();
+
+    if (data?.hasPassword) {
+      passwordBlock.style.display = "block";
+      noPasswordHint.style.display = "none";
+      btnRequestCode.style.display = "none";
+      btnLoginPassword.style.display = "";
+    } else {
+      passwordBlock.style.display = "none";
+      noPasswordHint.style.display = "";
+      btnRequestCode.style.display = "";
+      btnLoginPassword.style.display = "none";
+    }
+  } catch (err) {
+    // Falha silenciosa -- fica no comportamento por defeito (código
+    // por email), que sempre funciona independentemente disto.
+  }
+}
+
+document.getElementById("login-phone").addEventListener("input", schedulePasswordStatusCheck);
+document.getElementById("login-email").addEventListener("input", schedulePasswordStatusCheck);
+
+document.getElementById("btn-forgot-password").addEventListener("click", (e) => {
+  e.preventDefault();
+  document.getElementById("login-password-block").style.display = "none";
+  document.getElementById("login-no-password-hint").style.display = "";
+  document.getElementById("btn-request-code").style.display = "";
+  document.getElementById("btn-login-password").style.display = "none";
+});
+
+document.getElementById("btn-login-password").addEventListener("click", async () => {
+  const phone = document.getElementById("login-phone").value.trim();
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  const msg = document.getElementById("login-message");
+
+  if (!phone || !email || !password) {
+    showMessage(msg, "Preenche telefone, email e password.", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/login-password`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ phone, email, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Não foi possível entrar.", "error");
+      return;
+    }
+
+    localStorage.setItem("pt_session", data.sessionToken);
+    location.reload();
+  } catch (err) {
+    showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
+  }
+});
+
+// ---------- proposta de definir password, depois do primeiro login por código ----------
+function showPasswordProposalModal() {
+  if (document.getElementById("password-proposal-overlay")) return;
+
+  const overlay = document.createElement("div");
+  overlay.id = "password-proposal-overlay";
+  overlay.className = "password-proposal-overlay";
+  overlay.innerHTML = `
+    <div class="password-proposal-box">
+      <h3>Queres entrar sem código de email da próxima vez?</h3>
+      <p>
+        Se guardares uma password para a tua conta, podes entrar diretamente com ela,
+        sem esperar pelo email. Se não gravares, continuas sempre a usar o código por
+        email, sem problema nenhum -- podes sempre definir uma password mais tarde, nas
+        definições da tua conta.
+      </p>
+      <label for="proposal-password">Password</label>
+      <input type="password" id="proposal-password" placeholder="Pelo menos 8 caracteres" autocomplete="new-password" />
+      <label for="proposal-password-confirm">Repetir password</label>
+      <input type="password" id="proposal-password-confirm" autocomplete="new-password" />
+      <div class="message" id="password-proposal-message"></div>
+      <div class="password-proposal-actions">
+        <button type="button" id="btn-save-proposal-password" class="submit">Guardar password</button>
+        <button type="button" id="btn-skip-proposal-password" class="password-proposal-skip">Ignorar e usar código na próxima</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const closeModal = () => overlay.remove();
+
+  document.getElementById("btn-skip-proposal-password").addEventListener("click", closeModal);
+
+  document.getElementById("btn-save-proposal-password").addEventListener("click", async () => {
+    const password = document.getElementById("proposal-password").value;
+    const confirmValue = document.getElementById("proposal-password-confirm").value;
+    const msg = document.getElementById("password-proposal-message");
+    const token = localStorage.getItem("pt_session");
+
+    if (password.length < 8) {
+      showMessage(msg, "A password deve ter pelo menos 8 caracteres.", "error");
+      return;
+    }
+    if (password !== confirmValue) {
+      showMessage(msg, "As duas passwords não coincidem.", "error");
+      return;
+    }
+
+    const res = await fetch(`${API_BASE}/api/dealers/me/password`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Não foi possível guardar a password.", "error");
+      return;
+    }
+
+    showMessage(msg, "✓ Password definida.", "success");
+    setTimeout(closeModal, 1200);
+  });
+}
 
 // ---------- banner de modo de demonstração ----------
 // Função autocontida (HTML + CSS injetados via JS) para poder ser
@@ -1049,6 +1255,7 @@ document.getElementById("btn-redeem-code").addEventListener("click", async () =>
     }
 
     localStorage.setItem("pt_session", data.sessionToken);
+    sessionStorage.setItem("logged_in_via_code", "true");
     loadDashboard();
   } catch (err) {
     showMessage(msg, "Erro de ligação. Tenta novamente.", "error");
@@ -1141,6 +1348,18 @@ async function loadDashboard() {
     }
 
     renderContactCard(meData.dealer);
+    renderPasswordCard(meData.dealer);
+
+    // Propõe definir password só depois de um login por código
+    // (não por password, nem no login demo) e só se a conta ainda
+    // não tiver uma definida -- sessionStorage garante que isto só
+    // acontece uma vez por sessão de browser, não a cada
+    // loadDashboard() (que também corre, por exemplo, ao voltar de
+    // outra aba).
+    if (sessionStorage.getItem("logged_in_via_code") === "true" && !meData.dealer.has_password) {
+      sessionStorage.removeItem("logged_in_via_code");
+      showPasswordProposalModal();
+    }
 
     const listingsRes = await fetch(`${API_BASE}/api/listings/mine`, {
       headers: { authorization: `Bearer ${token}` },
@@ -1229,6 +1448,104 @@ function renderContactCard(dealer) {
     // login, é com o número novo que tem de o fazer.
     showMessage(msg, "✓ Telefone atualizado. Usa este número para entrares da próxima vez.", "success");
   });
+}
+
+/**
+ * Login por password é sempre opcional -- por defeito, todas as
+ * contas entram só por código de email. Esta secção mostra um de
+ * dois estados: sem password definida (formulário para definir uma),
+ * ou já definida (permite mudar ou remover).
+ */
+function renderPasswordCard(dealer) {
+  const card = document.getElementById("dash-password-card");
+
+  if (dealer.has_password) {
+    card.innerHTML = `
+      <h4 class="dash-password-title">Password de acesso</h4>
+      <p class="hint">Já tens uma password definida -- podes entrar com ela ou continuar a usar o código por email, como preferires.</p>
+      <label for="new-password-input">Nova password (deixa vazio para não mudar)</label>
+      <input type="password" id="new-password-input" placeholder="Pelo menos 8 caracteres" autocomplete="new-password" />
+      <label for="new-password-confirm">Repetir nova password</label>
+      <input type="password" id="new-password-confirm" autocomplete="new-password" />
+      <div class="password-card-actions">
+        <button type="button" id="btn-change-password" class="contact-edit-save">Guardar nova password</button>
+        <button type="button" id="btn-remove-password" class="password-remove-btn">Remover password (voltar a exigir sempre código)</button>
+      </div>
+      <div class="message" id="password-card-message"></div>
+    `;
+  } else {
+    card.innerHTML = `
+      <h4 class="dash-password-title">Password de acesso (opcional)</h4>
+      <p class="hint">
+        Por defeito entras sempre com um código enviado por email. Se preferires, podes definir
+        uma password para entrar mais depressa -- o código por email continua sempre disponível
+        como alternativa, mesmo depois de definires uma.
+      </p>
+      <label for="new-password-input">Password</label>
+      <input type="password" id="new-password-input" placeholder="Pelo menos 8 caracteres" autocomplete="new-password" />
+      <label for="new-password-confirm">Repetir password</label>
+      <input type="password" id="new-password-confirm" autocomplete="new-password" />
+      <button type="button" id="btn-change-password" class="contact-edit-save">Definir password</button>
+      <div class="message" id="password-card-message"></div>
+    `;
+  }
+
+  document.getElementById("btn-change-password").addEventListener("click", async () => {
+    const password = document.getElementById("new-password-input").value;
+    const confirm = document.getElementById("new-password-confirm").value;
+    const msg = document.getElementById("password-card-message");
+    const token = localStorage.getItem("pt_session");
+
+    if (!password && dealer.has_password) return; // deixou vazio de propósito, não mexe em nada
+    if (password.length < 8) {
+      showMessage(msg, "A password deve ter pelo menos 8 caracteres.", "error");
+      return;
+    }
+    if (password !== confirm) {
+      showMessage(msg, "As duas passwords não coincidem.", "error");
+      return;
+    }
+
+    const res = await fetch(`${API_BASE}/api/dealers/me/password`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(msg, data.error || "Não foi possível guardar a password.", "error");
+      return;
+    }
+
+    showMessage(msg, "✓ " + data.message, "success");
+    dealer.has_password = true;
+    setTimeout(() => renderPasswordCard(dealer), 1500); // recarrega a secção para o estado "já tem password"
+  });
+
+  const removeBtn = document.getElementById("btn-remove-password");
+  if (removeBtn) {
+    removeBtn.addEventListener("click", async () => {
+      if (!confirm("Remover a password? A partir de agora só vais poder entrar com o código por email.")) return;
+
+      const msg = document.getElementById("password-card-message");
+      const token = localStorage.getItem("pt_session");
+
+      const res = await fetch(`${API_BASE}/api/dealers/me/password`, {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showMessage(msg, data.error || "Não foi possível remover a password.", "error");
+        return;
+      }
+
+      dealer.has_password = false;
+      renderPasswordCard(dealer);
+    });
+  }
 }
 
 // ---------- alertas de referência ----------

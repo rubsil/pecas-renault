@@ -994,6 +994,7 @@ function renderDealers(dealers) {
           ${!d.verified ? `<button class="btn-mini verify" data-action="verify-dealer" data-id="${d.id}">Verificar</button>` : ""}
           ${!d.email_confirmed ? `<button class="btn-mini resend" data-action="resend-confirmation" data-id="${d.id}">Reenviar código</button>` : ""}
           ${!d.is_demo ? `<button class="btn-mini reset-rate-limit" data-action="reset-rate-limit" data-id="${d.id}" title="Repõe o limite de 5 pedidos de código de verificação por hora, para esta conta">Repor limite de códigos verificação</button>` : ""}
+          ${d.has_password && !d.is_demo ? `<button class="btn-mini reset-password" data-action="reset-password" data-id="${d.id}" title="Remove a password desta conta -- volta a exigir sempre código por email para entrar">Repor password</button>` : ""}
           ${d.is_demo
             ? `<button class="btn-mini reset-demo" data-action="reset-demo">Repor demo</button>`
             : `<button class="btn-mini delete" data-action="delete-dealer" data-id="${d.id}" data-name="${escapeAttr(d.company_name)}" data-count="${d.active_listings_count || 0}">Eliminar</button>`
@@ -1040,6 +1041,9 @@ function renderDealers(dealers) {
   area.querySelectorAll('[data-action="reset-rate-limit"]').forEach(btn => {
     btn.addEventListener("click", () => resetRateLimit(Number(btn.dataset.id)));
   });
+  area.querySelectorAll('[data-action="reset-password"]').forEach(btn => {
+    btn.addEventListener("click", () => resetPassword(Number(btn.dataset.id)));
+  });
   area.querySelectorAll('[data-action="reset-demo"]').forEach(btn => {
     btn.addEventListener("click", resetDemoAccount);
   });
@@ -1048,6 +1052,13 @@ function renderDealers(dealers) {
 async function resetRateLimit(id) {
   await adminFetch(`/api/admin/dealers/${id}/reset-rate-limit`, { method: "POST" });
   showToast("Limite de pedidos de código reposto.");
+}
+
+async function resetPassword(id) {
+  if (!confirm("Remover a password desta conta? A pessoa volta a ter de entrar sempre com o código por email, até definir uma nova password.")) return;
+  await adminFetch(`/api/admin/dealers/${id}/reset-password`, { method: "POST" });
+  showToast("Password removida.");
+  loadDealers();
 }
 
 async function resetDemoAccount() {

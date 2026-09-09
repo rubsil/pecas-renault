@@ -123,6 +123,7 @@ D1 → `peca-troca-db` → Console). Histórico:
 - `0011_more_dealer_preferences.sql` — colunas `pref_sort_order`, `pref_default_view`
 - `0012_alert_email_notifications.sql` — coluna `pref_alert_notifications` + tabela `alert_notifications_sent`
 - `0013_login_rate_limit.sql` — colunas `login_code_requests_count`, `login_code_window_started_at`
+- `0014_optional_password_login.sql` — colunas `password_hash`, `password_salt`
 
 ## Correções manuais na base de dados
 
@@ -569,6 +570,56 @@ corretamente sem mudança de código aí.
 Testada isoladamente a lógica de resolução de sessão opcional (token
 válido, expirado, ausente, inexistente) e a construção dinâmica da
 query nos dois casos.
+
+## Login opcional por password (migração 0014)
+
+Por defeito, entrar continua a exigir sempre código por email, exatamente
+como sempre foi -- login por password é sempre uma escolha da própria
+pessoa, nunca obrigatório.
+
+**Guardar a password, com segurança de verdade.** `worker/src/password.ts`
+usa PBKDF2-SHA256 (Web Crypto API nativo do Workers, sem dependências
+externas), 100.000 iterações (limite prático do `crypto.subtle` no
+Cloudflare Workers -- valores mais altos são bloqueados pela própria
+plataforma), salt aleatório único gerado de novo sempre que a password
+é definida ou trocada. Nunca se guarda a password em texto simples --
+só o hash e o salt. Testado isoladamente: password certa aceite,
+errada rejeitada, mesma password gera hashes diferentes em contas
+diferentes (salts diferentes).
+
+**O admin nunca vê passwords, só as pode limpar.** Decisão de segurança
+deliberada -- guardar de forma reversível (para o admin "ver") seria
+guardar em texto simples, e qualquer falha de segurança exporia as
+passwords de toda a gente de uma vez. `POST /api/admin/dealers/:id/reset-password`
+só apaga `password_hash`/`password_salt`, forçando a conta a voltar a
+usar código por email; a pessoa define uma password nova se quiser,
+a partir daí. Botão "Repor password" no admin só aparece em contas
+que já têm uma definida (`has_password`, devolvido por `GET
+/api/admin/dealers`).
+
+**Fluxo de login.** `index.html`/`conta.html`: ao escrever telefone +
+email, `GET /api/auth/check-password-status` (pública, mas nunca
+confirma se a conta existe -- só diz `hasPassword: true/false`)
+consulta com um debounce de 400ms se essa conta tem password. Se
+tiver, mostra o campo de password + botão "Entrar" (chama `POST
+/api/auth/login-password`, com mensagem de erro genérica que não
+distingue "conta não existe" de "password errada", para não ajudar
+enumeração de contas); com link "Esqueci a password, entrar por
+código de email" que volta ao fluxo normal. Se não tiver, mantém-se o
+fluxo já existente.
+
+**Proposta pós-login.** Depois de um login bem-sucedido por código
+(não por password, nem no login demo -- marcado com
+`sessionStorage.setItem("logged_in_via_code")`), se a conta ainda não
+tiver password, mostra um modal a propor definir uma, com botão
+"Ignorar e usar código na próxima". Só aparece uma vez por sessão de
+browser (a flag é removida assim que o modal é mostrado), mesmo que
+`loadDashboard()` corra várias vezes.
+
+**Gestão contínua.** Aba "Dados da conta" no dashboard, secção
+própria (`dash-password-card`) com dois estados: sem password
+(formulário para definir) e com password (mudar ou remover, com
+confirmação antes de remover).
 
 ## Nome da empresa no registo — nota prática
 
