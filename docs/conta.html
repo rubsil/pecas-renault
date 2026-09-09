@@ -791,7 +791,7 @@ function showPasswordProposalModal() {
     }
 
     showMessage(msg, "✓ Password definida.", "success");
-    setTimeout(closeModal, 1200);
+    setTimeout(closeModal, 2500);
   });
 }
 
@@ -1520,7 +1520,7 @@ function renderPasswordCard(dealer) {
 
     showMessage(msg, "✓ " + data.message, "success");
     dealer.has_password = true;
-    setTimeout(() => renderPasswordCard(dealer), 1500); // recarrega a secção para o estado "já tem password"
+    setTimeout(() => renderPasswordCard(dealer), 3200); // recarrega a secção para o estado "já tem password"
   });
 
   const removeBtn = document.getElementById("btn-remove-password");
