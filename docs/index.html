@@ -134,7 +134,7 @@
     .hero-refs-pattern { animation: none; transform: rotate(-3deg) scale(1.15); opacity: 0.05; }
   }
   .hero-layout {
-    position: relative; z-index: 1; display: flex; align-items: center;
+    position: relative; z-index: 1; display: flex; align-items: flex-start;
     gap: 2.5rem; padding: 0 1.5rem;
   }
   .hero-inner { flex: 1 1 auto; min-width: 0; }
@@ -216,6 +216,13 @@
   .why-card {
     display: none;
     flex: 0 0 auto; width: min(380px, 100%);
+    /* Aproxima o cartão do bloco do título (não do topo absoluto do
+       hero, onde fica o eyebrow, pequeno e visualmente menos
+       relevante) -- valor calculado a partir da altura aproximada do
+       eyebrow (~1.75rem: tamanho de letra + margem), para o topo do
+       cartão ficar ao nível de "Peças paradas...", não de "Rede
+       Renault & Dacia". */
+    margin-top: 1.75rem;
     background: var(--paper-raised); border: 1px solid var(--line); border-left: 3px solid var(--hero-accent);
     border-radius: var(--radius); box-shadow: 0 6px 18px rgba(26,29,26,0.08);
     opacity: 0; animation: heroFadeUpIn 0.55s ease forwards; animation-delay: 0.55s;
