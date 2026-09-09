@@ -115,18 +115,41 @@
   .hero-refs-pattern {
     position: absolute; inset: -10% -10%; z-index: 0;
     font-family: var(--mono); font-size: 1.1rem; font-weight: 500; color: var(--ink);
-    opacity: 0.05; line-height: 2.6; letter-spacing: 0.12em; white-space: nowrap;
+    line-height: 2.6; letter-spacing: 0.12em; white-space: nowrap;
     overflow: hidden; pointer-events: none; user-select: none;
-    animation: heroPatternDrift 40s ease-in-out infinite;
+    animation: heroPatternDrift 40s ease-in-out infinite, heroPatternFadeIn 1.4s ease forwards;
+  }
+  /* Entra mais visível e desvanece até à opacidade normal --
+     reforça a chegada do hero, o loop de "respiração" já existente
+     mantém-se depois desta animação terminar. */
+  @keyframes heroPatternFadeIn {
+    from { opacity: 0.14; }
+    to { opacity: 0.05; }
   }
   @keyframes heroPatternDrift {
     0%, 100% { transform: rotate(-3deg) scale(1.15) translateX(0); }
     50% { transform: rotate(-3deg) scale(1.15) translateX(-1.2rem); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .hero-refs-pattern { animation: none; transform: rotate(-3deg) scale(1.15); }
+    .hero-refs-pattern { animation: none; transform: rotate(-3deg) scale(1.15); opacity: 0.05; }
   }
   .hero-inner { position: relative; z-index: 1; padding: 0 1.5rem; }
+
+  /* Entrada em cascata -- cada elemento aparece com um pequeno atraso
+     sobre o anterior, movimento subtil de baixo para cima. Só corre
+     uma vez, ao carregar a página. */
+  .hero-eyebrow, .hero-title, .hero-sub, .hero-meta {
+    opacity: 0; animation: heroFadeUpIn 0.6s ease forwards;
+  }
+  .hero-eyebrow { animation-delay: 0.05s; }
+  .hero-title { animation-delay: 0.15s; }
+  .hero-sub { animation-delay: 0.28s; }
+  .hero-meta { animation-delay: 0.4s; }
+  @keyframes heroFadeUpIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   .hero-eyebrow {
     font-family: var(--mono); font-size: 0.75rem; font-weight: 600; color: var(--hero-accent);
     letter-spacing: 0.03em; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;
@@ -143,11 +166,20 @@
   .hero-meta > div:first-child .hero-meta-value { color: var(--hero-accent); }
   .hero-meta-label { font-size: 0.68rem; color: var(--ink-faint); margin-top: 0.2rem; }
 
+  /* Os 3 passos entram em sequência -- só corre quando o bloco fica
+     visível (o JS aplica display: flex, sem sessão), nunca no
+     carregamento inicial já com display: none. */
   .hero-how-it-works {
     display: flex; gap: 1.5rem; margin-bottom: 1.5rem; padding: 1rem 0;
     border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); flex-wrap: wrap;
   }
-  .hiw-step { display: flex; align-items: flex-start; gap: 0.6rem; flex: 1 1 180px; }
+  .hiw-step {
+    display: flex; align-items: flex-start; gap: 0.6rem; flex: 1 1 180px;
+    opacity: 0; animation: heroFadeUpIn 0.5s ease forwards;
+  }
+  .hiw-step:nth-child(1) { animation-delay: 0.05s; }
+  .hiw-step:nth-child(2) { animation-delay: 0.15s; }
+  .hiw-step:nth-child(3) { animation-delay: 0.25s; }
   .hiw-step-num {
     flex-shrink: 0; width: 1.6rem; height: 1.6rem; border-radius: 50%;
     background: var(--hero-accent); color: white; font-weight: 700; font-size: 0.82rem;
@@ -156,9 +188,82 @@
   .hiw-step-text { font-size: 0.85rem; color: var(--ink-soft); line-height: 1.4; }
   .hiw-step-text strong { color: var(--ink); }
 
-  .hero-register-cta { font-size: 0.85rem; color: var(--ink-soft); margin: 1rem 0 0; }
-  .hero-register-cta a { color: var(--hero-accent); font-weight: 700; text-decoration: none; }
+  .hero-register-cta {
+    font-size: 0.85rem; color: var(--ink-soft); margin: 1rem 0 0;
+    opacity: 0; animation: heroFadeUpIn 0.5s ease forwards; animation-delay: 0.1s;
+  }
+  .hero-register-cta a {
+    color: var(--hero-accent); font-weight: 700; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 0.3rem;
+  }
   .hero-register-cta a:hover { text-decoration: underline; }
+  .hero-register-cta .cta-arrow { display: inline-block; transition: transform 0.2s ease; }
+  .hero-register-cta a:hover .cta-arrow { transform: translateX(4px); }
+
+  /* ---------- "Porque existe isto" (cartão fixo, canto superior direito) ---------- */
+  .why-card {
+    position: absolute; top: 1.5rem; right: 1.5rem; z-index: 2; width: min(420px, calc(100% - 3rem));
+    background: var(--paper-raised); border: 1px solid var(--line); border-left: 3px solid var(--hero-accent);
+    border-radius: var(--radius); box-shadow: 0 6px 18px rgba(26,29,26,0.08);
+    opacity: 0; animation: heroFadeUpIn 0.55s ease forwards; animation-delay: 0.55s;
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  /* Leve "glow" na borda quando aberto -- único toque de cor extra,
+     sem exagerar (só a sombra/borda reage, não o cartão inteiro). */
+  .why-card:has(.why-card-header[aria-expanded="true"]) {
+    box-shadow: 0 10px 28px rgba(196,98,45,0.18);
+    border-left-color: var(--hero-accent);
+  }
+  .why-card-header {
+    display: flex; align-items: center; gap: 0.6rem; width: 100%;
+    padding: 1.1rem 1.3rem; background: none; border: none; cursor: pointer; text-align: left;
+    font-family: var(--sans);
+  }
+  .why-card-icon {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 1.9rem; height: 1.9rem; border-radius: 50%; background: var(--hero-accent-soft);
+    color: var(--hero-accent); font-weight: 700; font-size: 1.05rem;
+    transition: transform 0.3s ease, background 0.2s ease;
+  }
+  .why-card-header[aria-expanded="true"] .why-card-icon {
+    transform: rotate(180deg); background: var(--hero-accent); color: white;
+  }
+  .why-card-title { font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--ink); flex: 1; letter-spacing: -0.01em; }
+  .why-card-chevron {
+    color: var(--ink-faint); font-size: 0.8rem; flex-shrink: 0; transition: transform 0.3s ease;
+  }
+  .why-card-header[aria-expanded="true"] .why-card-chevron { transform: rotate(180deg); color: var(--hero-accent); }
+  /* max-height em vez de height, porque o conteúdo real varia
+     (quebra de linha diferente consoante a largura do ecrã) e
+     "height: auto" não anima suavemente em CSS. */
+  .why-card-body {
+    max-height: 0; overflow: hidden; opacity: 0;
+    transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease;
+    padding: 0 1.3rem;
+  }
+  .why-card-header[aria-expanded="true"] ~ .why-card-body {
+    max-height: 320px; opacity: 1; padding: 0 1.3rem 1.2rem;
+  }
+  .why-text { font-size: 0.92rem; color: var(--ink-soft); line-height: 1.6; margin: 0 0 0.8rem; }
+  .why-disclaimer {
+    font-size: 0.74rem; color: var(--ink-faint); margin: 0; padding-top: 0.7rem;
+    border-top: 1px dashed var(--line); font-style: italic;
+  }
+  /* Versão inline (telemóvel) fica escondida em ecrãs largos, onde o
+     cartão já mostra a mesma informação. */
+  @media (min-width: 760px) {
+    .why-inline { display: none !important; }
+  }
+  .why-inline {
+    margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--line);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-eyebrow, .hero-title, .hero-sub, .hero-meta, .hiw-step, .hero-register-cta, .why-card {
+      animation: none; opacity: 1;
+    }
+    .hero-register-cta .cta-arrow { transition: none; }
+  }
 
   /* ---------- barra de pesquisa fixa (aparece ao sair o hero da vista) ---------- */
   .sticky-search-bar {
@@ -208,8 +313,16 @@
     color: var(--paper);
     border-radius: var(--radius);
     cursor: pointer;
+    animation: btnPulse 1.4s ease 1.8s 1; /* pulse subtil, uma única vez, depois de tudo já ter entrado */
   }
   .search-row button:hover { background: var(--accent); border-color: var(--accent); }
+  @keyframes btnPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(196, 98, 45, 0); }
+    50% { box-shadow: 0 0 0 6px rgba(196, 98, 45, 0.15); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .search-row button { animation: none; }
+  }
 
   .results {
     display: flex;
@@ -628,8 +741,45 @@
     </div>
 
     <p class="hero-register-cta" id="hero-register-cta" style="display: none;">
-      Já és concessionário Renault ou Dacia? <a href="conta.html">Regista a tua conta gratuitamente →</a>
+      Já és concessionário Renault ou Dacia? <a href="conta.html">Regista a tua conta gratuitamente <span class="cta-arrow">→</span></a>
     </p>
+
+    <!-- Em ecrãs estreitos não há espaço vazio para o cartão flutuante
+         -- a mesma informação fica sempre visível aqui, sem a mecânica
+         de expandir/recolher (que só faz sentido para poupar espaço
+         em ecrãs largos). -->
+    <div class="why-inline" id="why-inline" style="display: none;">
+      <p class="why-text">
+        <strong>Porque existe isto:</strong> às vezes encomenda-se peça a mais, ou a peça errada — e a Renault
+        não aceita devolução. Essa peça fica parada no stock, à espera de um cliente que pode nunca aparecer.
+        Só que noutro local, alguém pode estar mesmo a precisar dela agora.
+      </p>
+      <p class="why-disclaimer">
+        Projeto independente, criado por um concessionário para a rede — sem ligação oficial à Renault ou Dacia.
+      </p>
+    </div>
+  </div>
+
+  <!-- Cartão sempre visível pelo cabeçalho, com o texto a expandir ao
+       clicar -- combina presença visual permanente com a
+       interatividade de um "revelar". Só aparece em ecrãs largos,
+       onde há espaço vazio real à direita do título; sem sessão. -->
+  <div class="why-card" id="why-card" style="display: none;">
+    <button type="button" class="why-card-header" id="why-card-toggle" aria-expanded="false">
+      <span class="why-card-icon">?</span>
+      <h2 class="why-card-title">Porque existe isto</h2>
+      <span class="why-card-chevron">▾</span>
+    </button>
+    <div class="why-card-body">
+      <p class="why-text">
+        Às vezes encomenda-se peça a mais, ou a peça errada — e a Renault não aceita devolução.
+        Essa peça fica parada no stock, à espera de um cliente que pode nunca aparecer.
+        Só que noutro local, alguém pode estar mesmo a precisar dela agora.
+      </p>
+      <p class="why-disclaimer">
+        Projeto independente, criado por um concessionário para a rede — sem ligação oficial à Renault ou Dacia.
+      </p>
+    </div>
   </div>
 </div>
 
@@ -685,13 +835,46 @@ fetch(`${API_BASE}/api/stats/public`)
   .then(res => res.ok ? res.json() : null)
   .then(data => {
     if (data && typeof data.registeredDealersCount === "number") {
-      document.getElementById("hero-meta-dealers").textContent = data.registeredDealersCount;
+      animateHeroCount(document.getElementById("hero-meta-dealers"), data.registeredDealersCount);
     }
     if (data && typeof data.activeListingsCount === "number") {
-      document.getElementById("hero-meta-listings").textContent = data.activeListingsCount;
+      animateHeroCount(document.getElementById("hero-meta-listings"), data.activeListingsCount);
     }
   })
   .catch(() => {});
+
+/** Conta rapidamente de 0 até ao valor real, com desaceleração perto
+ *  do fim (easeOutQuad) -- mais agradável do que uma contagem linear
+ *  constante. Desativada com prefers-reduced-motion, mostra logo o
+ *  valor final. */
+function animateHeroCount(el, target) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    el.textContent = target;
+    return;
+  }
+  const duration = 900;
+  const start = performance.now();
+  function step(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - (1 - progress) * (1 - progress);
+    el.textContent = Math.round(eased * target);
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// Toggle do cartão "Porque existe isto?" -- o cabeçalho fica sempre
+// visível (não é um popover solto), o texto expande/recolhe dentro
+// do próprio cartão ao clicar. O elemento só existe/é relevante sem
+// sessão, mas o listener não faz mal nenhum de ficar sempre ligado
+// (não corre nada se ninguém clicar).
+const whyCardToggle = document.getElementById("why-card-toggle");
+if (whyCardToggle) {
+  whyCardToggle.addEventListener("click", () => {
+    const isOpen = whyCardToggle.getAttribute("aria-expanded") === "true";
+    whyCardToggle.setAttribute("aria-expanded", String(!isOpen));
+  });
+}
 
 // ---------- banner de modo de demonstração ----------
 // Mesma função autocontida usada em conta.html e publicar.html --
@@ -1347,6 +1530,8 @@ if (sessionToken) {
   // quem já tem conta não precisa de ver sempre.
   document.getElementById("hero-how-it-works").style.display = "flex";
   document.getElementById("hero-register-cta").style.display = "block";
+  document.getElementById("why-card").style.display = "block";
+  document.getElementById("why-inline").style.display = "block";
 
   // "Mostrar miniaturas de fotos" não tem efeito nenhum sem sessão --
   // a API já nem devolve fotos nesse caso (ver renderCardList()) --
