@@ -170,7 +170,10 @@
   .btn-mini.reset-demo { border-color: #8a5a1f; color: #8a5a1f; }
   .btn-mini.reset-demo:hover { background: #f5ead6; }
 
-  .row-actions { display: flex; gap: 0.35rem; white-space: nowrap; justify-content: flex-end; }
+  .row-actions {
+    display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end;
+    max-width: 17rem; /* força ~2 botões por linha (2 em cima, 2 em baixo numa conta com todos os botões) */
+  }
   .btn-mini {
     padding: 0.3rem 0.6rem; font-size: 0.78rem; font-weight: 600; border-radius: 4px;
     cursor: pointer; border: 1px solid var(--line); background: var(--paper-raised);
@@ -993,7 +996,7 @@ function renderDealers(dealers) {
           <button class="btn-mini save" data-action="save-dealer" data-id="${d.id}">Guardar</button>
           ${!d.verified ? `<button class="btn-mini verify" data-action="verify-dealer" data-id="${d.id}">Verificar</button>` : ""}
           ${!d.email_confirmed ? `<button class="btn-mini resend" data-action="resend-confirmation" data-id="${d.id}">Reenviar código</button>` : ""}
-          ${!d.is_demo ? `<button class="btn-mini reset-rate-limit" data-action="reset-rate-limit" data-id="${d.id}" title="Repõe o limite de 5 pedidos de código de verificação por hora, para esta conta">Repor limite de códigos verificação</button>` : ""}
+          ${!d.is_demo ? `<button class="btn-mini reset-rate-limit" data-action="reset-rate-limit" data-id="${d.id}" title="Repõe o limite de 5 pedidos de código de verificação por hora, para esta conta">Repor limite código</button>` : ""}
           ${d.has_password && !d.is_demo ? `<button class="btn-mini reset-password" data-action="reset-password" data-id="${d.id}" title="Remove a password desta conta -- volta a exigir sempre código por email para entrar">Repor password</button>` : ""}
           ${d.is_demo
             ? `<button class="btn-mini reset-demo" data-action="reset-demo">Repor demo</button>`

@@ -143,7 +143,17 @@
      (Como funciona, pesquisa, CTA) precisam da largura TOTAL do hero,
      ao contrário de .hero-inner (limitado a 480px só para ficar perto
      do cartão .why-card). */
-  .hero-below-layout { position: relative; z-index: 1; padding: 0 1.5rem; margin-top: 1.5rem; }
+  .hero-below-layout {
+    position: relative; z-index: 1; padding: 0 1.5rem; margin-top: 1.5rem;
+    transition: margin-top 0.35s ease;
+  }
+  /* Garante que abrir o cartão "empurra" visivelmente o resto do hero
+     para baixo -- sem isto, .hero-inner (mais alto que o cartão, mesmo
+     aberto) "ganhava" a corrida de altura no flex, e o resto da página
+     mal se mexia ao abrir/fechar. */
+  .hero:has(.why-card-header[aria-expanded="true"]) .hero-below-layout {
+    margin-top: 8rem;
+  }
 
   /* Entrada em cascata -- cada elemento aparece com um pequeno atraso
      sobre o anterior, movimento subtil de baixo para cima. Só corre
