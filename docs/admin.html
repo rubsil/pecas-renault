@@ -171,8 +171,11 @@
   .btn-mini.reset-demo:hover { background: #f5ead6; }
 
   .row-actions {
-    display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end;
-    max-width: 17rem; /* força ~2 botões por linha (2 em cima, 2 em baixo numa conta com todos os botões) */
+    display: grid; grid-template-columns: repeat(2, auto); gap: 0.35rem; justify-content: end;
+    /* Grid de 2 colunas fixas garante sempre exatamente 2 botões por
+       linha, independentemente do tamanho do texto de cada um --
+       mais robusto do que flex + max-width calculado (que dependia
+       de acertar a largura certa para cada combinação de botões). */
   }
   .btn-mini {
     padding: 0.3rem 0.6rem; font-size: 0.78rem; font-weight: 600; border-radius: 4px;
